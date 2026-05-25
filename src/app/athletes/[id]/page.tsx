@@ -371,6 +371,7 @@ export default async function AthleteProfilePage({
     </div>
   </div>
 </section>
+
       <section className="mb-6 rounded-[32px] border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur">
         <h3 className="mb-5 text-2xl font-black text-white">Filtros</h3>
 

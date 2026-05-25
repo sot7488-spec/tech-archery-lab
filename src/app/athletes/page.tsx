@@ -99,7 +99,6 @@ export default async function AthletesPage() {
 
         <form
           action={createAthlete}
-            encType="multipart/form-data"
           className="mb-8 rounded-[2rem] border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur"
         >
           <div className="mb-6 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
