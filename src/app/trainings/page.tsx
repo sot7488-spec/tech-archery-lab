@@ -57,6 +57,9 @@ export default async function TrainingsPage({
     trainings?.filter((training: any) => training.session_type === "competencia")
       .length || 0;
 
+  const inputClass =
+    "rounded-2xl border border-slate-200 bg-slate-50 p-3 font-medium outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100";
+
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-8 text-white">
       <div className="mx-auto max-w-7xl">
@@ -167,92 +170,87 @@ export default async function TrainingsPage({
             </p>
           </div>
 
-          {[
-            "rounded-2xl border border-slate-200 bg-slate-50 p-3 font-medium outline-none focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100",
-          ].map((inputClass) => (
-            <>
-              <select
-                name="athlete_id"
-                className={inputClass}
-                required
-                defaultValue={selectedAthleteId}
-              >
-                <option value="" disabled>
-                  Selecciona atleta
-                </option>
-                {athletes?.map((athlete: any) => (
-                  <option key={athlete.id} value={athlete.id}>
-                    {athlete.users?.name}
-                  </option>
-                ))}
-              </select>
+          <select
+            name="athlete_id"
+            className={inputClass}
+            required
+            defaultValue={selectedAthleteId}
+          >
+            <option value="" disabled>
+              Selecciona atleta
+            </option>
 
-              <input
-                name="training_date"
-                type="date"
-                className={inputClass}
-                required
-              />
+            {athletes?.map((athlete: any) => (
+              <option key={athlete.id} value={athlete.id}>
+                {athlete.users?.name}
+              </option>
+            ))}
+          </select>
 
-              <input
-                name="location"
-                placeholder="Lugar"
-                className={inputClass}
-              />
+          <input
+            name="training_date"
+            type="date"
+            className={inputClass}
+            required
+          />
 
-              <select
-                name="session_type"
-                className={inputClass}
-                defaultValue="técnico"
-              >
-                <option value="técnico">Técnico</option>
-                <option value="puntuación">Puntuación</option>
-                <option value="competencia">Competencia</option>
-                <option value="tuning">Tuning</option>
-                <option value="físico">Físico</option>
-              </select>
+          <input
+            name="location"
+            placeholder="Lugar"
+            className={inputClass}
+          />
 
-              <select
-                name="weather"
-                className={inputClass}
-                defaultValue="soleado"
-              >
-                <option value="soleado">Soleado</option>
-                <option value="nublado">Nublado</option>
-                <option value="lluvia">Lluvia</option>
-                <option value="viento">Viento</option>
-                <option value="interior">Interior</option>
-                <option value="otro">Otro</option>
-              </select>
+          <select
+            name="session_type"
+            className={inputClass}
+            defaultValue="técnico"
+          >
+            <option value="técnico">Técnico</option>
+            <option value="puntuación">Puntuación</option>
+            <option value="competencia">Competencia</option>
+            <option value="tuning">Tuning</option>
+            <option value="físico">Físico</option>
+          </select>
 
-              <input
-                name="wind_speed_kmh"
-                type="number"
-                placeholder="Viento km/h"
-                className={inputClass}
-              />
+          <select
+            name="weather"
+            className={inputClass}
+            defaultValue="soleado"
+          >
+            <option value="soleado">Soleado</option>
+            <option value="nublado">Nublado</option>
+            <option value="lluvia">Lluvia</option>
+            <option value="viento">Viento</option>
+            <option value="interior">Interior</option>
+            <option value="otro">Otro</option>
+          </select>
 
-              <input
-                name="temperature_c"
-                type="number"
-                placeholder="Temperatura °C"
-                className={inputClass}
-              />
+          <input
+            name="wind_speed_kmh"
+            type="number"
+            placeholder="Viento km/h"
+            className={inputClass}
+          />
 
-              <input
-                name="objective"
-                placeholder="Objetivo del entrenamiento"
-                className={`${inputClass} md:col-span-2`}
-              />
+          <input
+            name="temperature_c"
+            type="number"
+            placeholder="Temperatura °C"
+            className={inputClass}
+          />
 
-              <textarea
-                name="coach_notes"
-                placeholder="Notas del entrenador"
-                className={`${inputClass} md:col-span-3`}
-                rows={3}
-              />
-            </>
-          ))}
+          <input
+            name="objective"
+            placeholder="Objetivo del entrenamiento"
+            className={`${inputClass} md:col-span-2`}
+          />
+
+          <textarea
+            name="coach_notes"
+            placeholder="Notas del entrenador"
+            className={`${inputClass} md:col-span-3`}
+            rows={3}
+          />
 
           <button className="rounded-2xl bg-slate-950 p-3 font-black text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-cyan-400 hover:text-slate-950">
             Crear entrenamiento
@@ -320,7 +318,7 @@ export default async function TrainingsPage({
                 </div>
               </div>
 
-              <p className="mt-5 text-sm font-black text-cyan-600 group-hover:translate-x-1">
+              <p className="mt-5 text-sm font-black text-cyan-600 transition group-hover:translate-x-1">
                 Ver detalle →
               </p>
             </Link>

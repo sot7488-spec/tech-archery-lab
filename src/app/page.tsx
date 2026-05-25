@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-
+import ScoreChart from "@/components/ScoreChart";
 export const dynamic = "force-dynamic";
+
+
 
 export default async function DashboardPage() {
   const { count: athletesCount } = await supabase
@@ -29,6 +31,12 @@ export default async function DashboardPage() {
     `)
     .order("training_date", { ascending: false })
     .limit(5);
+
+const scoreChartData =
+  latestTrainings?.map((training: any) => ({
+    date: training.training_date,
+    score: Number(training.total_score || 0),
+  })) || [];
 
   const totalScore =
     latestTrainings?.reduce(
@@ -91,6 +99,7 @@ const athleteRanking =
 const archerOfMonth = Object.values(athleteRanking).sort(
   (a: any, b: any) => b.totalScore - a.totalScore
 )[0] as any;
+
 
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-8 text-white">
@@ -203,68 +212,100 @@ const archerOfMonth = Object.values(athleteRanking).sort(
           </Link>
         </section>
 
-        <section className="rounded-[2rem] bg-white p-6 text-slate-950 shadow-2xl">
-          <div className="mb-5 flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-black">
-                Últimos entrenamientos
-              </h2>
-              <p className="text-sm font-medium text-slate-500">
-                Registro reciente de sesiones capturadas.
-              </p>
-            </div>
+        <section className="rounded-[2rem] border border-cyan-400/10 bg-gradient-to-br from-slate-900 via-slate-950 to-cyan-950/40 p-6 text-white shadow-2xl">
+  <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div>
+      <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-300">
+        Training Log
+      </p>
 
-            <Link
-              href="/trainings"
-              className="rounded-2xl bg-slate-950 px-4 py-2 text-sm font-black text-white hover:bg-cyan-400 hover:text-slate-950"
-            >
-              Ver todos
-            </Link>
+      <h2 className="mt-2 text-2xl font-black">
+        Últimos entrenamientos
+      </h2>
+
+      <p className="mt-1 text-sm font-medium text-slate-400">
+        Registro reciente de sesiones capturadas.
+      </p>
+    </div>
+
+    <Link
+      href="/trainings"
+      className="w-fit rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-5 py-3 text-sm font-black text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950"
+    >
+      Ver todos
+    </Link>
+  </div>
+
+  <div className="space-y-3">
+    {latestTrainings?.map((training: any, index: number) => (
+      <Link
+        key={training.id}
+        href={`/trainings/${training.id}`}
+        className="group grid grid-cols-1 gap-4 rounded-3xl border border-white/10 bg-white/5 p-4 transition hover:-translate-y-0.5 hover:border-cyan-400/30 hover:bg-cyan-400/10 md:grid-cols-12 md:items-center"
+      >
+        <div className="flex items-center gap-4 md:col-span-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 text-sm font-black text-cyan-300 shadow-[0_0_20px_rgba(34,211,238,0.15)]">
+            #{index + 1}
           </div>
 
-          <div className="space-y-3">
-            {latestTrainings?.map((training: any) => (
-              <Link
-                key={training.id}
-                href={`/trainings/${training.id}`}
-                className="grid grid-cols-1 gap-3 rounded-2xl bg-slate-100 p-4 transition hover:bg-slate-200 md:grid-cols-5 md:items-center"
-              >
-                <div className="md:col-span-2">
-                  <p className="font-black">
-                    {training.athlete_profiles?.users?.name || "Atleta"}
-                  </p>
-                  <p className="text-sm text-slate-500">
-                    {training.training_date}
-                  </p>
-                </div>
+          <div>
+            <p className="font-black text-white">
+              {training.athlete_profiles?.users?.name || "Atleta"}
+            </p>
 
-                <p className="text-sm font-bold text-slate-600">
-                  {training.session_type || "Entrenamiento"}
-                </p>
-
-                <p className="text-sm font-bold text-slate-600">
-                  {training.location || "Sin ubicación"}
-                </p>
-
-                <div className="flex items-center justify-between md:justify-end gap-3">
-                  <span className="rounded-full bg-slate-950 px-3 py-1 text-sm font-black text-white">
-                    {training.total_score || 0} pts
-                  </span>
-
-                  <span className="rounded-full bg-cyan-100 px-3 py-1 text-xs font-black uppercase text-cyan-700">
-                    {training.status || "draft"}
-                  </span>
-                </div>
-              </Link>
-            ))}
-
-            {latestTrainings?.length === 0 && (
-              <div className="rounded-2xl bg-slate-100 p-5 text-slate-500">
-                Aún no hay entrenamientos registrados.
-              </div>
-            )}
+            <p className="text-sm text-slate-400">
+              {training.training_date}
+            </p>
           </div>
-        </section>
+        </div>
+
+        <div className="md:col-span-2">
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+            Tipo
+          </p>
+          <p className="text-sm font-black text-slate-200">
+            {training.session_type || "Entrenamiento"}
+          </p>
+        </div>
+
+        <div className="md:col-span-2">
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+            Lugar
+          </p>
+          <p className="text-sm font-black text-slate-200">
+            {training.location || "Sin ubicación"}
+          </p>
+        </div>
+
+        <div className="md:col-span-2">
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+            Score
+          </p>
+          <p className="text-2xl font-black text-cyan-300">
+            {training.total_score || 0}
+            <span className="ml-1 text-xs text-slate-500">pts</span>
+          </p>
+        </div>
+
+        <div className="flex items-center justify-start gap-3 md:col-span-2 md:justify-end">
+          <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-black uppercase text-cyan-300">
+            {training.status || "draft"}
+          </span>
+
+          <span className="text-lg font-black text-slate-500 transition group-hover:translate-x-1 group-hover:text-cyan-300">
+            →
+          </span>
+        </div>
+      </Link>
+    ))}
+
+    {latestTrainings?.length === 0 && (
+      <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-slate-400">
+        Aún no hay entrenamientos registrados.
+      </div>
+    )}
+  </div>
+</section>
       </div>
     </main>
   );

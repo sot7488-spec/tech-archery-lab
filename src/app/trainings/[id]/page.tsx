@@ -402,9 +402,8 @@ export default async function TrainingDetailPage({
           </div>
         </section>
 
-        <section className="rounded-[2rem] bg-white p-6 text-slate-950 shadow-2xl">
-          <h3 className="mb-4 text-2xl font-black">Mapa de impactos</h3>
-          <TargetHeatmap arrows={allTrainingArrows} />
+        <section>
+           <TargetHeatmap arrows={allTrainingArrows} />
         </section>
       </div>
     </main>

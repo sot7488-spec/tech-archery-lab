@@ -312,35 +312,65 @@ export default async function AthleteProfilePage({
         ← Volver a atletas
       </Link>
 
-      <section className="mb-6 mt-6 rounded-[32px] border border-white/10 bg-gradient-to-br from-cyan-500/20 to-blue-500/10 p-8 shadow-2xl backdrop-blur">
-        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="mb-2 text-xs font-bold uppercase tracking-[0.35em] text-cyan-300">
-              Athlete Performance
-            </p>
+      <section className="mb-6 mt-6 overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-cyan-500/20 via-slate-900 to-blue-500/10 p-6 shadow-2xl backdrop-blur md:p-8">
+  <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+    <div className="flex flex-col gap-5 md:flex-row md:items-center">
+      <div className="relative">
+        <div className="absolute inset-0 rounded-[28px] bg-cyan-400/30 blur-xl" />
 
-            <h1 className="text-5xl font-black tracking-tight text-white">
-              {athlete.users?.name}
-            </h1>
+        <img
+          src={athlete.photo_url || "/tal.png"}
+          alt={athlete.users?.name || "Atleta"}
+          className="relative h-28 w-28 rounded-[28px] border border-cyan-400/40 bg-slate-950 object-cover p-1 shadow-xl md:h-36 md:w-36"
+        />
+      </div>
 
-            <p className="mt-2 text-slate-300">{athlete.users?.email}</p>
-          </div>
+      <div>
+        <p className="mb-2 text-xs font-bold uppercase tracking-[0.35em] text-cyan-300">
+          Athlete Performance
+        </p>
 
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href={`/trainings?athlete_id=${athlete.id}`}
-              className="rounded-2xl bg-cyan-400 px-5 py-3 font-black text-slate-950 transition hover:scale-[1.02] hover:bg-cyan-300"
-            >
-              Ver entrenamientos
-            </Link>
+        <h1 className="text-4xl font-black tracking-tight text-white md:text-5xl">
+          {athlete.users?.name}
+        </h1>
 
-            <span className="w-fit rounded-full border border-cyan-400/20 bg-cyan-400/20 px-4 py-3 font-bold text-cyan-300">
-              {athlete.bow_type}
-            </span>
-          </div>
+        <p className="mt-2 text-slate-300">{athlete.users?.email}</p>
+
+        <div className="mt-4 flex flex-wrap gap-3">
+          <span className="rounded-full border border-cyan-400/20 bg-cyan-400/20 px-4 py-2 text-sm font-bold text-cyan-300">
+            {athlete.bow_type || "Arco"}
+          </span>
+
+          <span className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm font-bold text-slate-300">
+            {athlete.category || "Sin categoría"}
+          </span>
+
+          <span className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm font-bold text-slate-300">
+            {athlete.dominant_hand || "Sin dominante"}
+          </span>
         </div>
-      </section>
+      </div>
+    </div>
 
+    <div className="flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row">
+      <Link
+        href={`/trainings?athlete_id=${athlete.id}`}
+        className="rounded-2xl bg-cyan-400 px-5 py-3 text-center font-black text-slate-950 shadow-lg shadow-cyan-500/20 transition hover:scale-[1.02] hover:bg-cyan-300"
+      >
+        Ver entrenamientos
+      </Link>
+
+      <div className="rounded-2xl border border-white/10 bg-white/10 px-5 py-3 text-center">
+        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+          Libras
+        </p>
+        <p className="text-2xl font-black text-white">
+          {athlete.draw_weight_lbs || "-"}
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
       <section className="mb-6 rounded-[32px] border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur">
         <h3 className="mb-5 text-2xl font-black text-white">Filtros</h3>
 
@@ -384,6 +414,8 @@ export default async function AthleteProfilePage({
           </a>
         </div>
       </section>
+
+     
 
       <section className="mb-6 grid grid-cols-1 gap-5 md:grid-cols-4">
         <StatCard title="Entrenamientos" value={totalTrainings} />

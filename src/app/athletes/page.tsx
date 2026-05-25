@@ -99,6 +99,7 @@ export default async function AthletesPage() {
 
         <form
           action={createAthlete}
+            encType="multipart/form-data"
           className="mb-8 rounded-[2rem] border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur"
         >
           <div className="mb-6 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
@@ -109,6 +110,20 @@ export default async function AthletesPage() {
               </p>
             </div>
           </div>
+
+          <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+  <label className="mb-2 block text-sm font-bold text-slate-300">
+    Foto del atleta
+  </label>
+
+  <input
+    name="photo"
+    type="file"
+    accept="image/*"
+    capture="environment"
+    className="w-full text-sm text-slate-300 file:mr-4 file:rounded-xl file:border-0 file:bg-cyan-400 file:px-4 file:py-2 file:font-black file:text-slate-950"
+  />
+</div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             <input
