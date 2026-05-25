@@ -6,15 +6,14 @@ export const metadata: Metadata = {
   title: "Tech Archery Lab",
   description: "Archery Performance Platform",
 };
-
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es">
-      <body>
+    <html lang="es" className="dark">
+      <body className="scrollbar-tal">
         <div className="flex min-h-screen bg-slate-950">
           <Sidebar />
 
