@@ -311,75 +311,176 @@ export default async function TrainingDetailPage({
           )}
         </section>
 
-        <section className="mb-8 rounded-[2.5rem] border border-cyan-400/10 bg-white/[0.04] p-6 text-white shadow-[0_0_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-          <div className="mb-5 flex items-center justify-between">
-            <div>
-              <h3 className="text-2xl font-black">Series registradas</h3>
-              <p className="text-sm font-medium text-slate-500">
-                Historial de puntuaciones por ronda.
+        
+<section className="mb-8 overflow-hidden rounded-[2.5rem] border border-cyan-400/10 bg-gradient-to-br from-slate-900 via-slate-950 to-cyan-950/20 p-6 text-white shadow-[0_0_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+  <div className="mb-6 flex items-center justify-between">
+    <div>
+      <p className="text-xs font-black uppercase tracking-[0.35em] text-cyan-300">
+        TAL Session History
+      </p>
+
+      <h3 className="mt-2 text-3xl font-black tracking-tight">
+        Series registradas
+      </h3>
+
+      <p className="mt-2 text-sm text-slate-400">
+        Historial completo de puntuaciones y agrupaciones.
+      </p>
+    </div>
+
+    <div className="rounded-3xl border border-cyan-400/20 bg-cyan-400/10 px-5 py-4 shadow-xl shadow-cyan-500/10 backdrop-blur-xl">
+      <p className="text-xs font-black uppercase tracking-widest text-cyan-300">
+        Rondas
+      </p>
+
+      <p className="text-4xl font-black text-white">
+        {training.training_rounds?.length || 0}
+      </p>
+    </div>
+  </div>
+
+  <div className="space-y-6">
+    {training.training_rounds?.map((round: any) => (
+      <div
+        key={round.id}
+        className="relative overflow-hidden rounded-[2rem] border border-cyan-400/10 bg-white/[0.04] p-6 shadow-[0_0_50px_rgba(0,0,0,0.35)] backdrop-blur-xl"
+      >
+        <div className="absolute right-[-80px] top-[-80px] h-56 w-56 rounded-full bg-cyan-400/5 blur-3xl" />
+
+        <div className="relative z-10 mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-300">
+              Configuración
+            </p>
+
+            <h4 className="mt-2 text-2xl font-black">
+              {round.distance_meters} m · Diana{" "}
+              {round.target_size_cm || "-"} cm
+            </h4>
+          </div>
+
+          <div className="flex gap-3">
+            <div className="rounded-2xl border border-white/10 bg-slate-950/80 px-5 py-4 text-center">
+              <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                Series
+              </p>
+
+              <p className="mt-1 text-3xl font-black text-white">
+                {round.series?.length || 0}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-5 py-4 text-center">
+              <p className="text-xs font-bold uppercase tracking-widest text-cyan-300">
+                Score
+              </p>
+
+              <p className="mt-1 text-3xl font-black text-white">
+                {round.series?.reduce(
+                  (sum: number, serie: any) =>
+                    sum + Number(serie.total_score || 0),
+                  0
+                ) || 0}
               </p>
             </div>
           </div>
+        </div>
 
-          <div className="space-y-5">
-            {training.training_rounds?.map((round: any) => (
-              <div
-                key={round.id}
-                className="rounded-3xl border border-slate-200 bg-slate-50 p-5"
-              >
-                <p className="mb-4 font-black">
-                  Distancia {round.distance_meters} m · Diana{" "}
-                  {round.target_size_cm || "-"} cm
-                </p>
+        <div className="space-y-5">
+          {round.series?.map((serie: any) => (
+            <div
+              key={serie.id}
+              className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/70 p-5 shadow-xl"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 to-transparent opacity-50" />
 
-                <div className="space-y-4">
-                  {round.series?.map((serie: any) => (
-                    <div
-                      key={serie.id}
-                      className="rounded-3xl bg-white p-5 shadow-sm"
-                    >
-                      <div className="mb-4 flex items-center justify-between">
-                        <p className="font-black">Serie {serie.series_number}</p>
+              <div className="relative z-10 mb-5 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-300">
+                    Serie
+                  </p>
 
-                        <span className="rounded-2xl bg-slate-950 px-4 py-2 text-sm font-black text-white">
-                          Total: {serie.total_score}
-                        </span>
-                      </div>
+                  <h5 className="mt-1 text-2xl font-black">
+                    #{serie.series_number}
+                  </h5>
+                </div>
 
-                      <div className="grid grid-cols-6 gap-2">
-                        {serie.arrows?.map((arrow: any, index: number) => (
-                          <div
-                            key={arrow.id}
-                            className="rounded-2xl border border-slate-200 bg-slate-100 p-3 text-center"
-                          >
-                            <p className="text-xs font-bold text-slate-400">
-                              F{index + 1}
-                            </p>
+                <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-5 py-3 shadow-lg shadow-cyan-500/10">
+                  <p className="text-xs font-black uppercase tracking-widest text-cyan-300">
+                    Total
+                  </p>
 
-                            <p className="text-2xl font-black">
-                              {arrow.is_x
-                                ? "X"
-                                : arrow.score === 0
-                                ? "M"
-                                : arrow.score}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+                  <p className="mt-1 text-3xl font-black text-white">
+                    {serie.total_score}
+                  </p>
                 </div>
               </div>
-            ))}
 
-            {(!training.training_rounds ||
-              training.training_rounds.length === 0) && (
-              <p className="rounded-2xl bg-slate-100 p-4 font-medium text-slate-500">
-                Aún no hay series registradas.
-              </p>
-            )}
-          </div>
-        </section>
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
+                {serie.arrows?.map((arrow: any, index: number) => {
+                  const displayValue = arrow.is_x
+                    ? "X"
+                    : arrow.score === 0
+                    ? "M"
+                    : arrow.score;
+
+                  const isX = displayValue === "X";
+                  const isMiss = displayValue === "M";
+
+                  return (
+                    <div
+                      key={arrow.id}
+                      className={`group relative overflow-hidden rounded-2xl border p-4 text-center transition-all hover:-translate-y-1 ${
+                        isX
+                          ? "border-yellow-300/30 bg-yellow-400/10 shadow-[0_0_25px_rgba(250,204,21,0.2)]"
+                          : isMiss
+                          ? "border-red-400/20 bg-red-500/10"
+                          : "border-white/10 bg-white/[0.04]"
+                      }`}
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-50" />
+
+                      <div className="relative z-10">
+                        <p className="text-xs font-black uppercase tracking-widest text-slate-400">
+                          F{index + 1}
+                        </p>
+
+                        <p
+                          className={`mt-2 text-4xl font-black ${
+                            isX
+                              ? "text-yellow-300 drop-shadow-[0_0_15px_rgba(250,204,21,0.75)]"
+                              : isMiss
+                              ? "text-red-300"
+                              : "text-white"
+                          }`}
+                        >
+                          {displayValue}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ))}
+
+    {(!training.training_rounds ||
+      training.training_rounds.length === 0) && (
+      <div className="rounded-[2rem] border border-dashed border-white/10 bg-white/[0.03] p-10 text-center">
+        <p className="text-lg font-bold text-slate-400">
+          Aún no hay series registradas.
+        </p>
+
+        <p className="mt-2 text-sm text-slate-500">
+          Comienza capturando la primera serie del entrenamiento.
+        </p>
+      </div>
+    )}
+  </div>
+</section>
 
         <section>
            <TargetHeatmap arrows={allTrainingArrows} />

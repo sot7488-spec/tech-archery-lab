@@ -7,14 +7,34 @@ type ArrowPosition = {
   y: number;
 };
 
+function calculateScore(x: number, y: number) {
+  const distance = Math.sqrt(x * x + y * y);
+
+  if (distance <= 5) return "X";
+  if (distance <= 7) return "10";
+  if (distance <= 13) return "9";
+  if (distance <= 17) return "8";
+  if (distance <= 22) return "7";
+  if (distance <= 28) return "6";
+  if (distance <= 33) return "5";
+  if (distance <= 38) return "4";
+  if (distance <= 43) return "3";
+  if (distance <= 48) return "2";
+  if (distance <= 53) return "1";
+
+  return "M";
+}
+
 export function TargetScoringBoard() {
   const [positions, setPositions] = useState<Record<number, ArrowPosition>>({});
+  const [scores, setScores] = useState<Record<number, string>>({});
   const [activeArrow, setActiveArrow] = useState(1);
 
   function handleTargetClick(e: React.MouseEvent<HTMLDivElement>) {
     if (activeArrow > 6) return;
 
     const rect = e.currentTarget.getBoundingClientRect();
+
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
 
@@ -24,16 +44,31 @@ export function TargetScoringBoard() {
     const x = Number((percentX - 50).toFixed(2));
     const y = Number((50 - percentY).toFixed(2));
 
+    const score = calculateScore(x, y);
+
     setPositions((prev) => ({
       ...prev,
       [activeArrow]: { x, y },
     }));
 
-    if (activeArrow < 6) setActiveArrow(activeArrow + 1);
+    setScores((prev) => ({
+      ...prev,
+      [activeArrow]: score,
+    }));
+
+    if (activeArrow < 6) {
+      setActiveArrow(activeArrow + 1);
+    }
   }
 
   function clearArrow(n: number) {
     setPositions((prev) => {
+      const copy = { ...prev };
+      delete copy[n];
+      return copy;
+    });
+
+    setScores((prev) => {
       const copy = { ...prev };
       delete copy[n];
       return copy;
@@ -44,6 +79,7 @@ export function TargetScoringBoard() {
 
   function clearAll() {
     setPositions({});
+    setScores({});
     setActiveArrow(1);
   }
 
@@ -77,7 +113,7 @@ export function TargetScoringBoard() {
           </h3>
 
           <p className="mt-2 text-sm text-slate-400">
-            Captura el valor y marca los impactos sobre una sola diana.
+            Haz clic en la diana para registrar score e impacto.
           </p>
 
           <div className="mt-5 space-y-3">
@@ -98,6 +134,13 @@ export function TargetScoringBoard() {
                   <input
                     name={`arrow_${n}`}
                     type="text"
+                    value={scores[n] || ""}
+                    onChange={(e) =>
+                      setScores((prev) => ({
+                        ...prev,
+                        [n]: e.target.value.toUpperCase(),
+                      }))
+                    }
                     inputMode="text"
                     pattern="^(X|x|M|m|10|[1-9])$"
                     placeholder="Score"
@@ -171,24 +214,22 @@ export function TargetScoringBoard() {
             <div className="absolute inset-0 rounded-full bg-cyan-400/10 blur-2xl" />
 
             <div className="relative h-full w-full overflow-hidden rounded-full border border-white/10 bg-white shadow-2xl">
-              <div className="absolute inset-0 rounded-full bg-white" />
-              
               <div className="absolute inset-0 rounded-full border border-neutral-300 bg-white shadow-inner" />
-              <div className="absolute inset-[5%] rounded-full border-2 border-neutral-700 bg-black shadow-[0_0_25px_rgba(0,0,0,0.55)]" />
-              <div className="absolute inset-[15%] rounded-full border-2 border-sky-300 bg-sky-500 shadow-[0_0_30px_rgba(14,165,233,0.45)]" />
-              <div className="absolute inset-[25%] rounded-full border-2 border-red-300 bg-red-600 shadow-[0_0_30px_rgba(220,38,38,0.45)]" />
-              <div className="absolute inset-[35%] rounded-full border-4 border-yellow-100 bg-yellow-300 shadow-[0_0_40px_rgba(250,204,21,0.85)]" />
-              <div className="absolute inset-[43%] rounded-full border-4 border-yellow-50 bg-yellow-200 shadow-[0_0_45px_rgba(255,255,255,0.95)]" />
-              
+              <div className="absolute inset-[7%] rounded-full border-2 border-neutral-700 bg-black shadow-[0_0_25px_rgba(0,0,0,0.55)]" />
+              <div className="absolute inset-[17%] rounded-full border-2 border-sky-300 bg-sky-500 shadow-[0_0_30px_rgba(14,165,233,0.45)]" />
+              <div className="absolute inset-[27%] rounded-full border-2 border-red-300 bg-red-600 shadow-[0_0_30px_rgba(220,38,38,0.45)]" />
+              <div className="absolute inset-[37%] rounded-full border-4 border-yellow-100 bg-yellow-300 shadow-[0_0_40px_rgba(250,204,21,0.85)]" />
+              <div className="absolute inset-[46%] rounded-full border-4 border-yellow-50 bg-yellow-200 shadow-[0_0_45px_rgba(255,255,255,0.95)]" />
+
               <div className="absolute left-1/2 top-0 z-10 h-full w-px -translate-x-1/2 bg-slate-950/30" />
               <div className="absolute left-0 top-1/2 z-10 h-px w-full -translate-y-1/2 bg-slate-950/30" />
 
-              <div className="absolute left-1/2 top-1/2 z-10 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-slate-950/50" />
+              <div className="absolute left-1/2 top-1/2 z-10 h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-slate-950/50 bg-yellow-200/30" />
 
               {Object.entries(positions).map(([arrow, position]) => (
                 <div
                   key={arrow}
-                  className="absolute z-20 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-white bg-cyan-400 text-xs font-black text-slate-950 shadow-[0_0_22px_rgba(34,211,238,0.85)]"
+                  className="absolute z-20 flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white bg-cyan-400 text-[8px] font-black text-slate-950 shadow-[0_0_10px_rgba(34,211,238,0.75)]"
                   style={{
                     left: `${50 + position.x}%`,
                     top: `${50 - position.y}%`,
