@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 type ArrowPosition = {
   x: number;
@@ -15,7 +15,6 @@ export function TargetScoringBoard() {
     if (activeArrow > 6) return;
 
     const rect = e.currentTarget.getBoundingClientRect();
-
     const clickX = e.clientX - rect.left;
     const clickY = e.clientY - rect.top;
 
@@ -30,9 +29,7 @@ export function TargetScoringBoard() {
       [activeArrow]: { x, y },
     }));
 
-    if (activeArrow < 6) {
-      setActiveArrow(activeArrow + 1);
-    }
+    if (activeArrow < 6) setActiveArrow(activeArrow + 1);
   }
 
   function clearArrow(n: number) {
@@ -53,7 +50,7 @@ export function TargetScoringBoard() {
   const registeredCount = Object.keys(positions).length;
 
   return (
-    <div className="md:col-span-4">
+    <div className="w-full">
       {[1, 2, 3, 4, 5, 6].map((n) => (
         <div key={n}>
           <input
@@ -69,7 +66,7 @@ export function TargetScoringBoard() {
         </div>
       ))}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[380px_1fr]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[340px_1fr]">
         <section className="rounded-[2rem] border border-cyan-400/10 bg-slate-950/80 p-5 shadow-[0_0_40px_rgba(0,0,0,0.35)]">
           <p className="text-xs font-black uppercase tracking-[0.3em] text-cyan-300">
             Serie actual
@@ -87,31 +84,37 @@ export function TargetScoringBoard() {
             {[1, 2, 3, 4, 5, 6].map((n) => (
               <div
                 key={n}
-                className={`grid grid-cols-[70px_1fr_80px] items-center gap-3 rounded-2xl border p-3 ${
+                className={`rounded-2xl border p-3 transition ${
                   activeArrow === n
                     ? "border-cyan-400/40 bg-cyan-400/10"
                     : "border-white/10 bg-white/[0.04]"
                 }`}
               >
-                <p className="text-sm font-black text-cyan-300">F{n}</p>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-400/10 text-sm font-black text-cyan-300">
+                    F{n}
+                  </div>
 
-                <input
-                  name={`arrow_${n}`}
-                  type="text"
-                  inputMode="text"
-                  pattern="^(X|x|M|m|10|[1-9])$"
-                  placeholder="Score"
-                  className="h-11 rounded-xl border border-white/10 bg-slate-900 px-3 text-center text-lg font-black uppercase text-white outline-none placeholder:text-slate-600 focus:border-cyan-400 focus:ring-4 focus:ring-cyan-400/10"
-                  required
-                />
+                  <input
+                    name={`arrow_${n}`}
+                    type="text"
+                    inputMode="text"
+                    pattern="^(X|x|M|m|10|[1-9])$"
+                    placeholder="Score"
+                    className="min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-center text-base font-black uppercase text-white outline-none placeholder:text-slate-600 focus:border-cyan-400 focus:ring-4 focus:ring-cyan-400/10"
+                    required
+                  />
+                </div>
 
-                <button
-                  type="button"
-                  onClick={() => clearArrow(n)}
-                  className="rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs font-black text-red-300 hover:bg-red-500/20"
-                >
-                  Limpiar
-                </button>
+                {positions[n] && (
+                  <button
+                    type="button"
+                    onClick={() => clearArrow(n)}
+                    className="mt-2 w-full rounded-xl border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs font-black text-red-300 hover:bg-red-500/20"
+                  >
+                    Limpiar flecha {n}
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -163,17 +166,20 @@ export function TargetScoringBoard() {
 
           <div
             onClick={handleTargetClick}
-            className="relative mx-auto aspect-square w-full max-w-[620px] cursor-crosshair rounded-full border border-cyan-400/20 bg-slate-950 p-4 shadow-[0_0_70px_rgba(34,211,238,0.18)]"
+            className="relative mx-auto aspect-square w-full max-w-[560px] cursor-crosshair rounded-full border border-cyan-400/20 bg-slate-950 p-4 shadow-[0_0_70px_rgba(34,211,238,0.18)]"
           >
             <div className="absolute inset-0 rounded-full bg-cyan-400/10 blur-2xl" />
 
             <div className="relative h-full w-full overflow-hidden rounded-full border border-white/10 bg-white shadow-2xl">
               <div className="absolute inset-0 rounded-full bg-white" />
-              <div className="absolute inset-[7%] rounded-full bg-neutral-950" />
-              <div className="absolute inset-[17%] rounded-full bg-sky-500" />
-              <div className="absolute inset-[27%] rounded-full bg-red-600" />
-              <div className="absolute inset-[37%] rounded-full bg-yellow-300" />
-
+              
+              <div className="absolute inset-0 rounded-full border border-neutral-300 bg-white shadow-inner" />
+              <div className="absolute inset-[5%] rounded-full border-2 border-neutral-700 bg-black shadow-[0_0_25px_rgba(0,0,0,0.55)]" />
+              <div className="absolute inset-[15%] rounded-full border-2 border-sky-300 bg-sky-500 shadow-[0_0_30px_rgba(14,165,233,0.45)]" />
+              <div className="absolute inset-[25%] rounded-full border-2 border-red-300 bg-red-600 shadow-[0_0_30px_rgba(220,38,38,0.45)]" />
+              <div className="absolute inset-[35%] rounded-full border-4 border-yellow-100 bg-yellow-300 shadow-[0_0_40px_rgba(250,204,21,0.85)]" />
+              <div className="absolute inset-[43%] rounded-full border-4 border-yellow-50 bg-yellow-200 shadow-[0_0_45px_rgba(255,255,255,0.95)]" />
+              
               <div className="absolute left-1/2 top-0 z-10 h-full w-px -translate-x-1/2 bg-slate-950/30" />
               <div className="absolute left-0 top-1/2 z-10 h-px w-full -translate-y-1/2 bg-slate-950/30" />
 
