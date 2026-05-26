@@ -1,26 +1,27 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
-import Sidebar from "@/components/Sidebar";
+
+import AppShell from "@/components/AppShell";
+
+const inter = Inter({
+  subsets: ["latin"],
+});
 
 export const metadata: Metadata = {
   title: "Tech Archery Lab",
-  description: "Archery Performance Platform",
+  description: "Sistema de gestión deportiva",
 };
+
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
-    <html lang="es" className="dark">
-      <body className="scrollbar-tal">
-        <div className="flex min-h-screen bg-slate-950">
-          <Sidebar />
-
-          <main className="flex-1 overflow-auto">
-            {children}
-          </main>
-        </div>
+    <html lang="es">
+      <body className={inter.className}>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

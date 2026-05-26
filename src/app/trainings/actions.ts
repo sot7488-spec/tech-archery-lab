@@ -26,6 +26,9 @@ export async function createTraining(formData: FormData) {
       temperature_c,
       objective,
       coach_notes,
+      equipment_profile_id:
+      String(formData.get("equipment_profile_id") || "") || null,
+      brace_height_cm: Number(formData.get("brace_height_cm") || 0),
     });
 
   if (error) {

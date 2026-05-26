@@ -1,6 +1,5 @@
 export const dynamic = "force-dynamic";
-
-import { ClickTargetInput } from "@/components/click-target-input";
+import { TargetScoringBoard } from "@/components/target-scoring-board";
 import { createSeriesWithArrows, finishTraining } from "./actions";
 import { TargetHeatmap } from "@/components/target-heatmap";
 import Link from "next/link";
@@ -214,7 +213,7 @@ export default async function TrainingDetailPage({
           </div>
         </section>
 
-        <section className="mb-8 rounded-[2rem] bg-white p-6 text-slate-950 shadow-2xl">
+        <section className="mb-8 rounded-[2.5rem] border border-cyan-400/10 bg-white/[0.04] p-6 text-white shadow-[0_0_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
           <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h3 className="text-2xl font-black">Registrar serie</h3>
@@ -250,7 +249,7 @@ export default async function TrainingDetailPage({
           ) : (
             <form
               action={createSeriesWithArrows}
-              className="grid grid-cols-1 gap-4 md:grid-cols-4"
+              className="grid grid-cols-1 gap-5"
             >
               <input
                 type="hidden"
@@ -300,30 +299,10 @@ export default async function TrainingDetailPage({
                 </>
               )}
 
-              <div className="grid grid-cols-2 gap-3 md:col-span-4 md:grid-cols-6">
-                {[1, 2, 3, 4, 5, 6].map((n) => (
-                  <div
-                    key={n}
-                    className="rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm"
-                  >
-                    <p className="mb-3 text-center text-sm font-black uppercase text-slate-500">
-                      Flecha {n}
-                    </p>
 
-                    <input
-                      name={`arrow_${n}`}
-                      type="text"
-                      inputMode="text"
-                      pattern="^(X|x|M|m|10|[1-9])$"
-                      placeholder="Score"
-                      className="mb-3 w-full rounded-2xl border border-slate-200 bg-white p-3 text-center text-xl font-black uppercase outline-none focus:border-cyan-400 focus:ring-4 focus:ring-cyan-100"
-                      required
-                    />
+<TargetScoringBoard />
 
-                    <ClickTargetInput arrowNumber={n} />
-                  </div>
-                ))}
-              </div>
+
 
               <button className="rounded-2xl bg-slate-950 p-4 font-black text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-cyan-400 hover:text-slate-950 md:col-span-4">
                 Guardar serie
@@ -332,7 +311,7 @@ export default async function TrainingDetailPage({
           )}
         </section>
 
-        <section className="mb-8 rounded-[2rem] bg-white p-6 text-slate-950 shadow-2xl">
+        <section className="mb-8 rounded-[2.5rem] border border-cyan-400/10 bg-white/[0.04] p-6 text-white shadow-[0_0_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
           <div className="mb-5 flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-black">Series registradas</h3>
