@@ -19,7 +19,7 @@ type Athlete = {
   id: string;
   users?: {
     name?: string | null;
-  } | null;
+  }[] | null;
 };
 
 type Props = {
@@ -40,7 +40,6 @@ export default function EquipmentCreateModal({ athletes }: Props) {
 
   return (
     <>
-      {/* Botón abrir modal */}
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -66,7 +65,6 @@ export default function EquipmentCreateModal({ athletes }: Props) {
             <div className="pointer-events-none absolute right-[-80px] top-[-80px] h-72 w-72 rounded-full bg-cyan-400/10 blur-3xl" />
             <div className="pointer-events-none absolute bottom-[-80px] left-[-80px] h-72 w-72 rounded-full bg-blue-500/10 blur-3xl" />
 
-            {/* Encabezado fijo */}
             <div className="relative z-10 flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 text-cyan-300">
@@ -93,7 +91,6 @@ export default function EquipmentCreateModal({ athletes }: Props) {
               </button>
             </div>
 
-            {/* Formulario con scroll TAL */}
             <form
               action={createEquipment}
               className="
@@ -108,7 +105,6 @@ export default function EquipmentCreateModal({ athletes }: Props) {
                 [&::-webkit-scrollbar-thumb:hover]:bg-cyan-300
               "
             >
-              {/* Datos principales */}
               <section className={sectionClass}>
                 <div className={sectionTitleClass}>
                   <Target size={14} />
@@ -118,9 +114,10 @@ export default function EquipmentCreateModal({ athletes }: Props) {
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                   <select name="athlete_id" className={inputClass} required>
                     <option value="">Selecciona atleta</option>
+
                     {athletes?.map((athlete) => (
                       <option key={athlete.id} value={athlete.id}>
-                        {athlete.users?.name || "Atleta sin nombre"}
+                        {athlete.users?.[0]?.name || "Atleta sin nombre"}
                       </option>
                     ))}
                   </select>
@@ -144,7 +141,6 @@ export default function EquipmentCreateModal({ athletes }: Props) {
               </section>
 
               <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                {/* Arco */}
                 <section className={sectionClass}>
                   <div className={sectionTitleClass}>
                     <BowArrow size={14} />
@@ -172,7 +168,6 @@ export default function EquipmentCreateModal({ athletes }: Props) {
                   </div>
                 </section>
 
-                {/* Medidas */}
                 <section className={sectionClass}>
                   <div className={sectionTitleClass}>
                     <Ruler size={14} />
@@ -192,7 +187,6 @@ export default function EquipmentCreateModal({ athletes }: Props) {
               </div>
 
               <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
-                {/* Flechas */}
                 <section className={sectionClass}>
                   <div className={sectionTitleClass}>
                     <Crosshair size={14} />
@@ -209,7 +203,6 @@ export default function EquipmentCreateModal({ athletes }: Props) {
                   </div>
                 </section>
 
-                {/* Accesorios */}
                 <section className={sectionClass}>
                   <div className={sectionTitleClass}>
                     <Settings size={14} />
@@ -229,7 +222,6 @@ export default function EquipmentCreateModal({ athletes }: Props) {
                 </section>
               </div>
 
-              {/* Cuerda y notas */}
               <section className={sectionClass}>
                 <div className={sectionTitleClass}>
                   <Settings size={14} />
@@ -259,7 +251,6 @@ export default function EquipmentCreateModal({ athletes }: Props) {
                 </div>
               </section>
 
-              {/* Botones fijos visuales al final del scroll */}
               <div className="sticky bottom-0 flex justify-end gap-3 border-t border-white/10 bg-slate-950/95 py-4 backdrop-blur-xl">
                 <button
                   type="button"
