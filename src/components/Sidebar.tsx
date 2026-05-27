@@ -1,12 +1,24 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import {
+  LayoutDashboard,
+  Users,
+  Building2,
+  Shield,
+  Activity,
+  Trophy,
+  BarChart3,
+} from "lucide-react";
+
 const navItems = [
-  { href: "/", label: "Dashboard", icon: "⌁" },
-  { href: "/athletes", label: "Atletas", icon: "◎" },
-  { href: "/equipment", label: "Equipamiento", icon: "⚙" },
-  { href: "/trainings", label: "Entrenamientos", icon: "↗" },
-  { href: "/conade", label: "CONADE", icon: "★" },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/athletes", label: "Atletas", icon: Users },
+  { href: "/clubs", label: "Clubs", icon: Building2 },
+  { href: "/equipment", label: "Equipamiento", icon: Shield },
+  { href: "/trainings", label: "Entrenamientos", icon: Activity },
+  { href: "/conade", label: "CONADE", icon: Trophy },
 ];
 
 export default function Sidebar() {
@@ -39,19 +51,23 @@ export default function Sidebar() {
         </div>
 
         <nav className="space-y-2">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="group flex items-center gap-3 rounded-2xl border border-transparent px-4 py-4 font-bold text-slate-300 transition hover:-translate-y-0.5 hover:border-cyan-400/20 hover:bg-cyan-400/10 hover:text-white hover:shadow-[0_0_30px_rgba(34,211,238,0.12)]"
-            >
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 text-lg font-black text-cyan-300 transition group-hover:bg-cyan-400 group-hover:text-slate-950">
-                {item.icon}
-              </span>
+          {navItems.map((item) => {
+            const Icon = item.icon;
 
-              <span>{item.label}</span>
-            </Link>
-          ))}
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="group flex items-center gap-3 rounded-2xl border border-transparent px-4 py-4 font-bold text-slate-300 transition hover:-translate-y-0.5 hover:border-cyan-400/20 hover:bg-cyan-400/10 hover:text-white hover:shadow-[0_0_30px_rgba(34,211,238,0.12)]"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10 text-lg font-black text-cyan-300 transition group-hover:bg-cyan-400 group-hover:text-slate-950">
+                  <Icon size={20} />
+                </span>
+
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="mt-10 rounded-[2rem] border border-cyan-400/15 bg-gradient-to-br from-cyan-400/10 via-slate-900 to-slate-950 p-5 shadow-2xl">

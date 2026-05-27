@@ -13,9 +13,7 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect("/login");
-  }
+  if (!user) redirect("/login");
 
   const { data: profile } = await supabase
     .from("users")
@@ -23,9 +21,16 @@ export default async function DashboardPage() {
     .eq("id", user.id)
     .single();
 
-  if (!profile) {
-    redirect("/login");
-  }
+  if (!profile) redirect("/login");
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    .toISOString()
+    .slice(0, 10);
+
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+    .toISOString()
+    .slice(0, 10);
 
   const { count: athletesCount } = await supabase
     .from("athlete_profiles")
@@ -35,6 +40,12 @@ export default async function DashboardPage() {
     .from("training_sessions")
     .select("*", { count: "exact", head: true });
 
+  const { count: monthTrainingsCount } = await supabase
+    .from("training_sessions")
+    .select("*", { count: "exact", head: true })
+    .gte("training_date", monthStart)
+    .lte("training_date", monthEnd);
+
   const { data: latestTrainings } = await supabase
     .from("training_sessions")
     .select(`
@@ -43,21 +54,72 @@ export default async function DashboardPage() {
       location,
       session_type,
       total_score,
+      total_arrows,
+      average_score,
       status,
       athlete_profiles (
+        id,
         users!athlete_profiles_user_id_fkey (
-          name
+          name,
+          profile_photo_url
         )
       )
     `)
     .order("training_date", { ascending: false })
-    .limit(5);
+    .limit(8);
+
+  const { data: monthTrainings } = await supabase
+    .from("training_sessions")
+    .select(`
+      id,
+      athlete_id,
+      training_date,
+      total_score,
+      total_arrows,
+      average_score,
+      athlete_profiles (
+        id,
+        users!athlete_profiles_user_id_fkey (
+          name,
+          profile_photo_url
+        )
+      )
+    `)
+    .gte("training_date", monthStart)
+    .lte("training_date", monthEnd);
+
+  const { data: monthArrows } = await supabase
+    .from("arrows")
+    .select(`
+      id,
+      score,
+      series (
+        training_rounds (
+          training_sessions (
+            id,
+            training_date
+          )
+        )
+      )
+    `)
+    .gte("series.training_rounds.training_sessions.training_date", monthStart)
+    .lte("series.training_rounds.training_sessions.training_date", monthEnd);
+
+  const arrowsRegistered = monthArrows?.length || 0;
+
+  const bestScoreMonth =
+    monthTrainings?.reduce((best: number, item: any) => {
+      return Math.max(best, Number(item.total_score || 0));
+    }, 0) || 0;
 
   const scoreChartData =
-    latestTrainings?.map((training: any) => ({
-      date: training.training_date,
-      score: Number(training.total_score || 0),
-    })) || [];
+    latestTrainings
+      ?.slice()
+      .reverse()
+      .map((training: any) => ({
+        date: training.training_date,
+        score: Number(training.total_score || 0),
+      })) || [];
 
   const totalScore =
     latestTrainings?.reduce(
@@ -70,10 +132,75 @@ export default async function DashboardPage() {
       ? Math.round(totalScore / latestTrainings.length)
       : 0;
 
+  const athleteStatsMap = new Map();
+
+  monthTrainings?.forEach((training: any) => {
+    const athleteId = training.athlete_id;
+    const athleteName =
+      training.athlete_profiles?.users?.name || "Atleta sin nombre";
+    const photoUrl = training.athlete_profiles?.users?.profile_photo_url || null;
+
+    if (!athleteStatsMap.has(athleteId)) {
+      athleteStatsMap.set(athleteId, {
+        athleteId,
+        name: athleteName,
+        photoUrl,
+        trainings: 0,
+        totalScore: 0,
+        totalArrows: 0,
+        bestScore: 0,
+        avgScore: 0,
+      });
+    }
+
+    const current = athleteStatsMap.get(athleteId);
+
+    current.trainings += 1;
+    current.totalScore += Number(training.total_score || 0);
+    current.totalArrows += Number(training.total_arrows || 0);
+    current.bestScore = Math.max(
+      current.bestScore,
+      Number(training.total_score || 0)
+    );
+    current.avgScore =
+      current.trainings > 0
+        ? Math.round(current.totalScore / current.trainings)
+        : 0;
+  });
+
+  const rankingMonth = Array.from(athleteStatsMap.values()).sort(
+    (a, b) => b.avgScore - a.avgScore
+  );
+
+  const top5Athletes = rankingMonth.slice(0, 5);
+
+  const archerOfMonth = rankingMonth[0] || null;
+
+  const inactiveAthletes =
+    Math.max((athletesCount || 0) - athleteStatsMap.size, 0);
+
+  const quickAlerts = [
+    {
+      title: "Atletas sin entrenar este mes",
+      value: inactiveAthletes,
+      tone: inactiveAthletes > 0 ? "text-amber-300" : "text-emerald-300",
+    },
+    {
+      title: "Mejor score del mes",
+      value: bestScoreMonth,
+      tone: "text-cyan-300",
+    },
+    {
+      title: "Flechas registradas",
+      value: arrowsRegistered,
+      tone: "text-blue-300",
+    },
+  ];
+
   return (
     <main className="min-h-screen tal-radial tal-grid-bg px-6 py-8 text-white">
       <div className="mx-auto max-w-7xl space-y-8">
-        <header className="flex items-center justify-between">
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.3em] text-cyan-300">
               Panel principal
@@ -83,7 +210,7 @@ export default async function DashboardPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Link
               href="/athletes"
               className="rounded-2xl border border-white/10 bg-white/10 px-4 py-2 text-sm font-bold text-white hover:bg-white/20"
@@ -106,7 +233,7 @@ export default async function DashboardPage() {
           <div className="absolute right-[-120px] top-[-120px] h-[340px] w-[340px] rounded-full bg-cyan-400/10 blur-3xl" />
           <div className="absolute bottom-[-120px] left-[-120px] h-[320px] w-[320px] rounded-full bg-blue-500/10 blur-3xl" />
 
-          <div className="relative z-10 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+          <div className="relative z-10 grid gap-8 lg:grid-cols-[1.4fr_0.8fr] lg:items-end">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.45em] text-cyan-300">
                 TECH ARCHERY LAB
@@ -125,66 +252,212 @@ export default async function DashboardPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="tal-card tal-glow p-5">
-                <p className="text-xs font-black uppercase tracking-widest text-cyan-300">
-                  ATHLETES
-                </p>
-                <p className="mt-2 text-4xl font-black text-white">
-                  {athletesCount || 0}
-                </p>
-              </div>
+            <div className="tal-card tal-glow p-6">
+              <p className="text-xs font-black uppercase tracking-[0.3em] text-cyan-300">
+                Arquero del mes
+              </p>
 
-              <div className="tal-card tal-glow p-5">
-                <p className="text-xs font-black uppercase tracking-widest text-cyan-300">
-                  TRAININGS
+              {archerOfMonth ? (
+                <div className="mt-5 flex items-center gap-4">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-3xl border border-cyan-300/20 bg-cyan-400/10 text-2xl font-black text-cyan-200">
+                    {archerOfMonth.name.charAt(0)}
+                  </div>
+
+                  <div>
+                    <h2 className="text-2xl font-black text-white">
+                      {archerOfMonth.name}
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-400">
+                      Promedio mensual: {archerOfMonth.avgScore}
+                    </p>
+                    <p className="text-sm text-slate-400">
+                      Entrenamientos: {archerOfMonth.trainings} · Mejor score:{" "}
+                      {archerOfMonth.bestScore}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-4 text-sm text-slate-400">
+                  Aún no hay entrenamientos este mes.
                 </p>
-                <p className="mt-2 text-4xl font-black text-white">
-                  {trainingsCount || 0}
-                </p>
-              </div>
+              )}
             </div>
           </div>
         </section>
 
-        <section className="grid grid-cols-1 gap-5 md:grid-cols-4">
-          <div className="tal-card tal-glow p-5">
-            <p className="text-sm font-bold text-slate-400">Atletas</p>
-            <p className="mt-2 text-4xl font-black text-white">
-              {athletesCount || 0}
-            </p>
+        <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-6">
+          <KpiCard title="Atletas" value={athletesCount || 0} />
+          <KpiCard title="Entrenamientos" value={trainingsCount || 0} />
+          <KpiCard title="Entrenamientos del mes" value={monthTrainingsCount || 0} />
+          <KpiCard title="Flechas registradas" value={arrowsRegistered} />
+          <KpiCard title="Mejor score del mes" value={bestScoreMonth} />
+          <KpiCard title="Prom. últimos" value={avgLatestScore} highlight />
+        </section>
+
+        <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="tal-panel tal-glow p-6">
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.3em] text-cyan-300">
+                  Ranking del mes
+                </p>
+                <h2 className="mt-2 text-2xl font-black text-white">
+                  Top 5 atletas
+                </h2>
+              </div>
+
+              <Link
+                href="/athletes"
+                className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-bold text-cyan-200 hover:bg-cyan-400/20"
+              >
+                Ver atletas
+              </Link>
+            </div>
+
+            <div className="space-y-3">
+              {top5Athletes.length > 0 ? (
+                top5Athletes.map((athlete, index) => (
+                  <div
+                    key={athlete.athleteId}
+                    className="flex items-center justify-between rounded-3xl border border-white/10 bg-white/[0.04] p-4"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-400/10 text-sm font-black text-cyan-300">
+                        #{index + 1}
+                      </div>
+
+                      <div>
+                        <p className="font-black text-white">{athlete.name}</p>
+                        <p className="text-sm text-slate-400">
+                          {athlete.trainings} entrenamientos ·{" "}
+                          {athlete.totalArrows} flechas
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <p className="text-xl font-black text-cyan-300">
+                        {athlete.avgScore}
+                      </p>
+                      <p className="text-xs text-slate-500">promedio</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 text-sm text-slate-400">
+                  Aún no hay ranking mensual disponible.
+                </p>
+              )}
+            </div>
           </div>
 
-          <div className="tal-card tal-glow p-5">
-            <p className="text-sm font-bold text-slate-400">
-              Entrenamientos
+          <div className="tal-panel tal-glow p-6">
+            <p className="text-xs font-black uppercase tracking-[0.3em] text-cyan-300">
+              Alertas rápidas
             </p>
-            <p className="mt-2 text-4xl font-black text-white">
-              {trainingsCount || 0}
-            </p>
-          </div>
 
-          <div className="tal-card tal-glow p-5">
-            <p className="text-sm font-bold text-slate-400">
-              Últimos score
-            </p>
-            <p className="mt-2 text-4xl font-black text-white">
-              {totalScore}
-            </p>
-          </div>
-
-          <div className="rounded-3xl border border-cyan-400/20 bg-cyan-400/10 p-5 text-white shadow-xl shadow-cyan-500/20 backdrop-blur-xl">
-            <p className="text-sm font-bold text-cyan-300">
-              Prom. últimos
-            </p>
-            <p className="mt-2 text-4xl font-black">{avgLatestScore}</p>
+            <div className="mt-5 space-y-3">
+              {quickAlerts.map((alert) => (
+                <div
+                  key={alert.title}
+                  className="rounded-3xl border border-white/10 bg-white/[0.04] p-4"
+                >
+                  <p className="text-sm font-bold text-slate-400">
+                    {alert.title}
+                  </p>
+                  <p className={`mt-1 text-3xl font-black ${alert.tone}`}>
+                    {alert.value}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
-        <section className="tal-panel tal-glow p-6">
-          <ScoreChart data={scoreChartData} />
+        <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+          <section className="tal-panel tal-glow p-6">
+            <ScoreChart data={scoreChartData} />
+          </section>
+
+          <section className="tal-panel tal-glow p-6">
+            <div className="mb-5">
+              <p className="text-xs font-black uppercase tracking-[0.3em] text-cyan-300">
+                Actividad reciente
+              </p>
+              <h2 className="mt-2 text-2xl font-black text-white">
+                Últimos entrenamientos
+              </h2>
+            </div>
+
+            <div className="space-y-3">
+              {latestTrainings && latestTrainings.length > 0 ? (
+                latestTrainings.map((training: any) => (
+                  <Link
+                    key={training.id}
+                    href={`/trainings/${training.id}`}
+                    className="block rounded-3xl border border-white/10 bg-white/[0.04] p-4 transition hover:border-cyan-300/30 hover:bg-cyan-400/10"
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <p className="font-black text-white">
+                          {training.athlete_profiles?.users?.name ||
+                            "Atleta sin nombre"}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-400">
+                          {training.training_date} · {training.session_type} ·{" "}
+                          {training.location || "Sin ubicación"}
+                        </p>
+                      </div>
+
+                      <div className="text-right">
+                        <p className="text-xl font-black text-cyan-300">
+                          {training.total_score || 0}
+                        </p>
+                        <p className="text-xs text-slate-500">score</p>
+                      </div>
+                    </div>
+                  </Link>
+                ))
+              ) : (
+                <p className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 text-sm text-slate-400">
+                  Aún no hay entrenamientos registrados.
+                </p>
+              )}
+            </div>
+          </section>
         </section>
       </div>
     </main>
+  );
+}
+
+function KpiCard({
+  title,
+  value,
+  highlight = false,
+}: {
+  title: string;
+  value: number;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={
+        highlight
+          ? "rounded-3xl border border-cyan-400/20 bg-cyan-400/10 p-5 text-white shadow-xl shadow-cyan-500/20 backdrop-blur-xl"
+          : "tal-card tal-glow p-5"
+      }
+    >
+      <p
+        className={
+          highlight
+            ? "text-sm font-bold text-cyan-300"
+            : "text-sm font-bold text-slate-400"
+        }
+      >
+        {title}
+      </p>
+      <p className="mt-2 text-4xl font-black text-white">{value}</p>
+    </div>
   );
 }

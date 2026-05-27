@@ -112,7 +112,7 @@ export default async function TrainingsPage({
                   ? `Análisis de sesiones de ${
                       (selectedAthlete.users as any)?.name || "atleta"
                     }`
-                  : "Control estadístico de sesiones, objetivos, clima, score, equipamiento y brace height."}
+                  : "Control estadístico de sesiones, objetivos, clima, score, equipamiento, distancia, diana y brace height."}
               </p>
             </div>
 
@@ -187,8 +187,8 @@ export default async function TrainingsPage({
             </h2>
 
             <p className="mt-2 text-sm text-slate-400">
-              Relaciona atleta, equipamiento y brace height para análisis
-              estadístico posterior.
+              Define atleta, equipamiento, distancia, tamaño de diana y número
+              de series para iniciar el registro de flechas.
             </p>
           </div>
 
@@ -196,16 +196,20 @@ export default async function TrainingsPage({
             name="athlete_id"
             className={inputClass}
             required
-            defaultValue={selectedAthleteId}
+            defaultValue={selectedAthleteId || ""}
           >
-            <option className="bg-slate-900 text-white" value="Selecciona atleta" disabled>
+            <option className="bg-slate-900 text-white" value="" disabled>
               Selecciona atleta
             </option>
 
             {athletes?.map((athlete: any) => (
-              <option key={athlete.id} value={athlete.id}>
+              <option
+                className="bg-slate-900 text-white"
+                key={athlete.id}
+                value={athlete.id}
+              >
                 {athlete.users?.name}
-              </option> 
+              </option>
             ))}
           </select>
 
@@ -214,10 +218,16 @@ export default async function TrainingsPage({
             className={inputClass}
             defaultValue=""
           >
-            <option className="bg-slate-900 text-white" value="Equipamiento utilizado">Equipamiento utilizado</option>
+            <option className="bg-slate-900 text-white" value="">
+              Equipamiento utilizado
+            </option>
 
             {equipmentProfiles?.map((equipment: any) => (
-              <option key={equipment.id} value={equipment.id}>
+              <option
+                className="bg-slate-900 text-white"
+                key={equipment.id}
+                value={equipment.id}
+              >
                 {equipment.name}
               </option>
             ))}
@@ -229,6 +239,31 @@ export default async function TrainingsPage({
             step="0.1"
             placeholder="Brace height cm"
             className={inputClass}
+          />
+
+          <input
+            name="distance_meters"
+            type="number"
+            placeholder="Distancia m"
+            className={inputClass}
+            required
+          />
+
+          <input
+            name="target_size_cm"
+            type="number"
+            placeholder="Tamaño de diana cm"
+            className={inputClass}
+            required
+          />
+
+          <input
+            name="total_series"
+            type="number"
+            placeholder="Número de series"
+            className={inputClass}
+            min={1}
+            required
           />
 
           <input
@@ -245,20 +280,42 @@ export default async function TrainingsPage({
             className={inputClass}
             defaultValue="técnico"
           >
-            <option className="bg-slate-900 text-white"value="técnico">Técnico</option>
-            <option className="bg-slate-900 text-white"value="puntuación">Puntuación</option>
-            <option className="bg-slate-900 text-white"value="competencia">Competencia</option>
-            <option className="bg-slate-900 text-white"value="tuning">Tuning</option>
-            <option className="bg-slate-900 text-white"value="físico">Físico</option>
+            <option className="bg-slate-900 text-white" value="técnico">
+              Técnico
+            </option>
+            <option className="bg-slate-900 text-white" value="puntuación">
+              Puntuación
+            </option>
+            <option className="bg-slate-900 text-white" value="competencia">
+              Competencia
+            </option>
+            <option className="bg-slate-900 text-white" value="tuning">
+              Tuning
+            </option>
+            <option className="bg-slate-900 text-white" value="físico">
+              Físico
+            </option>
           </select>
 
           <select name="weather" className={inputClass} defaultValue="soleado">
-            <option className="bg-slate-900 text-white"value="soleado">Soleado</option>
-            <option className="bg-slate-900 text-white"value="nublado">Nublado</option>
-            <option className="bg-slate-900 text-white"value="lluvia">Lluvia</option>
-            <option className="bg-slate-900 text-white"value="viento">Viento</option>
-            <option className="bg-slate-900 text-white"value="interior">Interior</option>
-            <option className="bg-slate-900 text-white"value="otro">Otro</option>
+            <option className="bg-slate-900 text-white" value="soleado">
+              Soleado
+            </option>
+            <option className="bg-slate-900 text-white" value="nublado">
+              Nublado
+            </option>
+            <option className="bg-slate-900 text-white" value="lluvia">
+              Lluvia
+            </option>
+            <option className="bg-slate-900 text-white" value="viento">
+              Viento
+            </option>
+            <option className="bg-slate-900 text-white" value="interior">
+              Interior
+            </option>
+            <option className="bg-slate-900 text-white" value="otro">
+              Otro
+            </option>
           </select>
 
           <input
