@@ -96,7 +96,7 @@ export default function Sidebar() {
         icon: BarChart3,
       },
       {
-        href: `/trainings?athlete_id=${athlete.id}`,
+        href: `/trainings/athletes/${athlete.id}`,
         label: "Mis entrenamientos",
         icon: Activity,
       },

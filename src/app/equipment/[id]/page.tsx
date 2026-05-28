@@ -1,5 +1,6 @@
 import Link from "next/link";
 import EquipmentCardModal from "../EquipmentCardModal";
+import AthleteEquipmentCreateModal from "./AthleteEquipmentCreateModal";
 import {
   BowArrow,
   Crosshair,
@@ -155,17 +156,17 @@ export default async function AthleteEquipmentPage({ params }: PageProps) {
         <div className="absolute bottom-[-140px] right-[-120px] h-96 w-96 rounded-full bg-blue-600/10 blur-3xl" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_35%)]" />
       </div>
-
+        
       <div className="mx-auto max-w-7xl">
         <div className="mb-6 flex items-center justify-between gap-4">
-          <Link
-            href={`/athletes/${athleteId}`}
-            className="rounded-2xl border border-cyan-400/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-cyan-300 backdrop-blur-xl transition hover:border-cyan-300/30 hover:bg-cyan-400/10 hover:text-cyan-200"
-          >
-            ← Volver a ficha
-          </Link>
+            <AthleteEquipmentCreateModal
+            athleteId={athleteId}
+            athleteName={athleteName}
+          />
         </div>
+       </div>
 
+      <div className="mx-auto max-w-7xl">
         <section className="mb-6 overflow-hidden rounded-[2.2rem] border border-cyan-400/10 bg-gradient-to-br from-cyan-400/10 via-slate-900 to-slate-950 p-7 shadow-[0_0_80px_rgba(34,211,238,0.08)]">
           <p className="text-xs font-black uppercase tracking-[0.35em] text-cyan-300">
             TAL Athlete Equipment
