@@ -256,19 +256,21 @@ if (dateTo) {
           </div>
         </div>
 
+        <AnalyticsInsights
+        accuracy={accuracy}
+        averageScore={averageScore}
+        xCount={xCount}
+        totalArrows={totalArrows}
+        trainingsCount={trainings?.length || 0}
+        />
+        
         <DashboardAnalytics
           monthlyScores={monthlyScores}
           arrowDistribution={arrowDistribution}
           accuracy={accuracy}
         />
 
-        <AnalyticsInsights
-  accuracy={accuracy}
-  averageScore={averageScore}
-  xCount={xCount}
-  totalArrows={totalArrows}
-  trainingsCount={trainings?.length || 0}
-/>
+        
 
       </div>
     </main>

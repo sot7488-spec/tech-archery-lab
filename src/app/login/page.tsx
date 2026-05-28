@@ -11,30 +11,62 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  e.preventDefault();
 
-    setErrorMsg("");
-    setLoading(true);
+  setErrorMsg("");
+  setLoading(true);
 
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
 
-      if (error) {
-        setErrorMsg(error.message);
-        setLoading(false);
-        return;
-      }
-
-      window.location.assign("/");
-    } catch (err) {
-      console.error("ERROR GENERAL:", err);
-      setErrorMsg("Error inesperado al iniciar sesión");
+    if (error) {
+      setErrorMsg(error.message);
       setLoading(false);
+      return;
     }
+
+    const userId = data.user?.id;
+
+    if (!userId) {
+      setErrorMsg("No se pudo obtener el usuario autenticado.");
+      setLoading(false);
+      return;
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from("users")
+      .select("id, role")
+      .eq("id", userId)
+      .single();
+
+    if (profileError || !profile) {
+      setErrorMsg("No se encontró el perfil del usuario.");
+      setLoading(false);
+      return;
+    }
+
+    // ATHLETE
+    if (profile.role === "athlete") {
+      window.location.assign("/athletes/profile");
+      return;
+    }
+
+    // COACH / ADMIN
+    if (profile.role === "coach" || profile.role === "admin") {
+      window.location.assign("/");
+      return;
+    }
+
+    window.location.assign("/");
+  } catch (err) {
+    console.error("ERROR GENERAL:", err);
+    setErrorMsg("Error inesperado al iniciar sesión");
+    setLoading(false);
   }
+}
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-4 text-white">
