@@ -52,9 +52,7 @@ export default async function AthleteProfilePage({
   if (error || !athlete) {
     return (
       <main className="min-h-screen p-8 text-white">
-        <Link href="/athletes" className="text-cyan-300">
-          ← Volver a atletas
-        </Link>
+        
 
         <div className="mt-6 rounded-[32px] border border-red-400/20 bg-red-500/10 p-6 shadow-2xl backdrop-blur">
           <h1 className="text-2xl font-black text-red-300">
@@ -308,9 +306,7 @@ export default async function AthleteProfilePage({
 
   return (
     <main className="min-h-screen p-8 text-white">
-      <Link href="/athletes" className="text-cyan-300 hover:text-cyan-200">
-        ← Volver a atletas
-      </Link>
+      
 
       <section className="mb-6 mt-6 overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-cyan-500/20 via-slate-900 to-blue-500/10 p-6 shadow-2xl backdrop-blur md:p-8">
   <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">

@@ -50,9 +50,21 @@ export default function LoginPage() {
 
     // ATHLETE
     if (profile.role === "athlete") {
-      window.location.assign("/athletes/profile");
-      return;
-    }
+  const { data: athlete } = await supabase
+    .from("athlete_profiles")
+    .select("id")
+    .eq("user_id", userId)
+    .single();
+
+  if (!athlete?.id) {
+    setErrorMsg("No se encontró la ficha del atleta.");
+    setLoading(false);
+    return;
+  }
+
+  window.location.assign(`/athletes/${athlete.id}`);
+  return;
+}
 
     // COACH / ADMIN
     if (profile.role === "coach" || profile.role === "admin") {
