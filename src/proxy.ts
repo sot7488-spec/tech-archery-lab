@@ -55,8 +55,9 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
+  const exactAllowedAthleteRoutes = ["/agenda", "/analytics"];
+
   const allowedAthleteRoutes = [
-    "/agenda",
     `/athletes/${athlete.id}`,
     `/athletes/profile/${athlete.id}`,
     `/analytics/${athlete.id}`,
@@ -64,9 +65,11 @@ export async function proxy(request: NextRequest) {
     `/trainings/athletes/${athlete.id}`,
   ];
 
-  const isAllowed = allowedAthleteRoutes.some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`)
-  );
+  const isAllowed =
+    exactAllowedAthleteRoutes.includes(pathname) ||
+    allowedAthleteRoutes.some(
+      (route) => pathname === route || pathname.startsWith(`${route}/`)
+    );
 
   if (!isAllowed) {
     return NextResponse.redirect(
@@ -87,6 +90,7 @@ export const config = {
     "/clubs/:path*",
     "/conade/:path*",
     "/equipment/:path*",
+    "/tuning/:path*",
     "/trainings/:path*",
   ],
 };

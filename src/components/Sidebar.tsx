@@ -16,6 +16,7 @@ import {
   LogOut,
   UserPlus,
   CalendarDays,
+  SlidersHorizontal,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -32,6 +33,7 @@ const adminNavItems: NavItem[] = [
   { href: "/athletes", label: "Atletas", icon: Users },
   { href: "/clubs", label: "Clubs", icon: Building2 },
   { href: "/equipment", label: "Equipamiento", icon: Shield },
+  { href: "/tuning", label: "Tuning", icon: SlidersHorizontal },
   { href: "/trainings", label: "Entrenamientos", icon: Activity },
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
   { href: "/conade", label: "CONADE", icon: Trophy },
@@ -49,6 +51,7 @@ function coachNavItems(clubId: string | null): NavItem[] {
       icon: Building2,
     },
     { href: "/equipment", label: "Equipamiento", icon: Shield },
+    { href: "/tuning", label: "Tuning", icon: SlidersHorizontal },
     { href: "/trainings", label: "Entrenamientos", icon: Activity },
     { href: "/agenda", label: "Agenda", icon: CalendarDays },
   ];

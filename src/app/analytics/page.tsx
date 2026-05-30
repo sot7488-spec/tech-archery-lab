@@ -1,26 +1,108 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import {
+  ArrowLeft,
+  BarChart3,
+  CalendarDays,
+  Crosshair,
+  Search,
+  Target,
+  Trophy,
+  Users,
+  X,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardAnalytics } from "@/components/dashboard-analytics";
 import { AnalyticsInsights } from "@/components/analytics-insights";
 
 export const dynamic = "force-dynamic";
 
-export default async function AnalyticsPage({
-  searchParams,
-}: {
-    searchParams?: Promise<{
-  athlete_id?: string;
-  date_from?: string;
-  date_to?: string;
-}>;
-}) {
-  const supabase = await createClient();
+type PageProps = {
+  searchParams?: Promise<{
+    view?: string;
+    athlete_name?: string;
+    period?: string;
+    date_from?: string;
+    date_to?: string;
+  }>;
+};
 
+type AthleteOption = {
+  id: string;
+  user_id?: string | null;
+  club_id?: string | null;
+  users?: { name?: string | null } | { name?: string | null }[] | null;
+};
+
+function toDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getMonday(date: Date) {
+  const copy = new Date(date);
+  const day = copy.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  copy.setDate(copy.getDate() + mondayOffset);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+function addDays(date: Date, days: number) {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+function getMonthStart(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function getMonthEnd(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+function getAthleteName(relation: AthleteOption["users"] | undefined) {
+  if (Array.isArray(relation)) return relation[0]?.name || "Atleta sin nombre";
+  return relation?.name || "Atleta sin nombre";
+}
+
+function buildQueryString(params: Record<string, string>) {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value) query.set(key, value);
+  });
+  return query.toString();
+}
+
+export default async function AnalyticsPage({ searchParams }: PageProps) {
+  const supabase = await createClient();
   const params = await searchParams;
-  const selectedAthleteId = params?.athlete_id || "";
-  const dateFrom = params?.date_from || "";
-  const dateTo = params?.date_to || "";
+
+  const view = params?.view === "athlete" ? "athlete" : "club";
+  const athleteName = params?.athlete_name?.trim() || "";
+  const period = params?.period || "month";
+  const today = new Date();
+
+  let dateFrom = "";
+  let dateTo = "";
+
+  if (period === "today") {
+    dateFrom = toDateInputValue(today);
+    dateTo = toDateInputValue(today);
+  } else if (period === "week") {
+    const weekStart = getMonday(today);
+    dateFrom = toDateInputValue(weekStart);
+    dateTo = toDateInputValue(addDays(weekStart, 6));
+  } else if (period === "range") {
+    dateFrom = params?.date_from || "";
+    dateTo = params?.date_to || "";
+  } else {
+    dateFrom = toDateInputValue(getMonthStart(today));
+    dateTo = toDateInputValue(getMonthEnd(today));
+  }
 
   const {
     data: { user },
@@ -34,30 +116,55 @@ export default async function AnalyticsPage({
     .eq("id", user.id)
     .single();
 
-  if (currentUser?.role === "coach" && !currentUser.club_id) redirect("/");
+  if (!currentUser) redirect("/login");
+
+  if (currentUser.role === "athlete") {
+    const { data: athleteProfile } = await supabase
+      .from("athlete_profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (athleteProfile?.id) redirect(`/analytics/${athleteProfile.id}`);
+    redirect("/athletes/profile");
+  }
+
+  if (currentUser.role === "coach" && !currentUser.club_id) redirect("/");
 
   let athletesQuery = supabase
     .from("athlete_profiles")
     .select(`
       id,
+      user_id,
       club_id,
       users!athlete_profiles_user_id_fkey (
         name
       )
-    `);
+    `)
+    .order("created_at", { ascending: false });
 
-  if (currentUser?.role === "coach") {
+  if (currentUser.role === "coach") {
     athletesQuery = athletesQuery.eq("club_id", currentUser.club_id);
   }
 
-  const { data: athletes } = await athletesQuery;
-  const scopedAthleteIds = athletes?.map((athlete) => athlete.id) || [];
-  const safeSelectedAthleteId =
-    currentUser?.role === "coach" && selectedAthleteId
-      ? scopedAthleteIds.includes(selectedAthleteId)
-        ? selectedAthleteId
-        : ""
-      : selectedAthleteId;
+  const { data: athletesRaw } = await athletesQuery;
+  const athletes = (athletesRaw || []) as AthleteOption[];
+  const scopedAthleteIds = athletes.map((athlete) => athlete.id);
+
+  const normalizedName = athleteName.toLowerCase();
+  const matchedAthletes =
+    view === "athlete" && normalizedName
+      ? athletes.filter((athlete) =>
+          getAthleteName(athlete.users).toLowerCase().includes(normalizedName)
+        )
+      : [];
+
+  const filteredAthleteIds =
+    view === "athlete"
+      ? normalizedName
+        ? matchedAthletes.map((athlete) => athlete.id)
+        : []
+      : scopedAthleteIds;
 
   let query = supabase
     .from("training_sessions")
@@ -68,6 +175,7 @@ export default async function AnalyticsPage({
       total_arrows,
       average_score,
       athlete_id,
+      club_id,
       athlete_profiles (
         id,
         users!athlete_profiles_user_id_fkey (
@@ -76,6 +184,7 @@ export default async function AnalyticsPage({
       ),
       training_rounds (
         id,
+        distance_meters,
         series (
           id,
           series_number,
@@ -92,19 +201,18 @@ export default async function AnalyticsPage({
     `)
     .order("training_date", { ascending: true });
 
-  if (safeSelectedAthleteId) {
-    query = query.eq("athlete_id", safeSelectedAthleteId);
-  } else if (currentUser?.role === "coach") {
+  if (currentUser.role === "coach") {
     query = query.eq("club_id", currentUser.club_id);
   }
 
-  if (dateFrom) {
-  query = query.gte("training_date", dateFrom);
-}
+  if (view === "athlete") {
+    query = filteredAthleteIds.length
+      ? query.in("athlete_id", filteredAthleteIds)
+      : query.eq("athlete_id", "00000000-0000-0000-0000-000000000000");
+  }
 
-if (dateTo) {
-  query = query.lte("training_date", dateTo);
-}
+  if (dateFrom) query = query.gte("training_date", dateFrom);
+  if (dateTo) query = query.lte("training_date", dateTo);
 
   const { data: trainings } = await query;
 
@@ -113,8 +221,7 @@ if (dateTo) {
       training.training_rounds?.flatMap((round: any) => round.series || []) || []
     ) || [];
 
-  const allArrows =
-    allSeries?.flatMap((serie: any) => serie.arrows || []) || [];
+  const allArrows = allSeries.flatMap((serie: any) => serie.arrows || []);
 
   const totalScore =
     allSeries.reduce(
@@ -123,22 +230,18 @@ if (dateTo) {
     ) || 0;
 
   const totalArrows = allArrows.length;
-
   const averageScore =
     totalArrows > 0 ? Number((totalScore / totalArrows).toFixed(1)) : 0;
-
   const maxPossibleScore = totalArrows * 10;
-
   const accuracy =
     maxPossibleScore > 0
       ? Number(((totalScore / maxPossibleScore) * 100).toFixed(1))
       : 0;
-
   const xCount = allArrows.filter((arrow: any) => arrow.is_x).length;
 
   const monthlyScores =
     trainings?.map((training: any, index: number) => ({
-      name: `E${index + 1}`,
+      name: training.training_date || `E${index + 1}`,
       score: Number(training.total_score || 0),
     })) || [];
 
@@ -150,161 +253,220 @@ if (dateTo) {
     })
   );
 
-  const selectedAthlete = athletes?.find(
-    (athlete: any) => athlete.id === safeSelectedAthleteId
-  );
+  const activeAthletesCount = new Set(
+    trainings?.map((training: any) => training.athlete_id) || []
+  ).size;
+
+  const scopeLabel =
+    view === "athlete"
+      ? athleteName
+        ? `${matchedAthletes.length} atleta(s) encontrados`
+        : "Ingresa el nombre de un atleta"
+      : currentUser.role === "coach"
+        ? "Analitico del club"
+        : "Analitico general";
+
+  const periodLinks = [
+    { label: "Hoy", value: "today" },
+    { label: "Esta semana", value: "week" },
+    { label: "Este mes", value: "month" },
+    { label: "Rango", value: "range" },
+  ];
+
+  const inputClass =
+    "h-12 w-full rounded-2xl border border-cyan-400/10 bg-slate-950/80 px-4 text-sm font-bold text-white outline-none placeholder:text-slate-600 transition focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-400/10";
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-8 text-white">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex items-center justify-between">
+    <main className="min-h-screen overflow-hidden bg-slate-950 px-6 py-8 text-white">
+      <div className="pointer-events-none fixed inset-0 -z-10">
+        <div className="absolute left-[-120px] top-[-120px] h-96 w-96 rounded-full bg-cyan-400/10 blur-3xl" />
+        <div className="absolute bottom-[-140px] right-[-120px] h-96 w-96 rounded-full bg-blue-600/10 blur-3xl" />
+        <div className="absolute inset-0 tal-grid-bg opacity-20" />
+      </div>
+
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.35em] text-cyan-300">
               TAL Analytics Center
             </p>
-
-            <h1 className="mt-2 text-5xl font-black tracking-tight">
-              Performance
-              <span className="block text-cyan-300">Analytics Engine</span>
+            <h1 className="mt-2 text-4xl font-black tracking-tight tal-text-glow md:text-6xl">
+              Performance Analytics
             </h1>
-
-            <p className="mt-4 max-w-2xl text-slate-400">
-              {selectedAthlete
-                ? `Analíticas de ${
-                    (selectedAthlete.users as any)?.name || "atleta"
-                  }`
-                : "Analíticas generales de precisión, score, distribución de impactos y rendimiento."}
+            <p className="mt-3 max-w-2xl text-sm font-medium text-slate-400 md:text-base">
+              {scopeLabel}. Filtra rendimiento por club, atleta y periodo de
+              entrenamiento.
             </p>
           </div>
 
           <Link
             href="/"
-            className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-5 py-3 text-sm font-black text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950"
+            className="inline-flex w-fit items-center gap-2 rounded-2xl border border-cyan-400/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-cyan-300 backdrop-blur-xl transition hover:border-cyan-300/30 hover:bg-cyan-400/10"
           >
-            ← Dashboard
+            <ArrowLeft size={16} />
+            Dashboard
           </Link>
         </div>
 
-        <section className="mb-8 rounded-[2rem] border border-cyan-400/10 bg-white/[0.04] p-5 shadow-2xl backdrop-blur-2xl">
-          <h2 className="mb-4 text-xl font-black">Filtrar por atleta</h2>
+        <section className="tal-chart-card">
+          <form method="GET" className="space-y-5">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[220px_1fr]">
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.25em] text-cyan-300">
+                  Tipo
+                </label>
+                <select name="view" defaultValue={view} className={inputClass}>
+                  <option className="bg-slate-900 text-white" value="club">
+                    Club
+                  </option>
+                  <option className="bg-slate-900 text-white" value="athlete">
+                    Atleta
+                  </option>
+                </select>
+              </div>
 
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href="/analytics"
-              className={`rounded-2xl px-4 py-2 text-sm font-black transition ${
-                !safeSelectedAthleteId
-                  ? "bg-cyan-400 text-slate-950"
-                  : "bg-white/10 text-slate-300 hover:bg-white/20"
-              }`}
-            >
-              Todos
-            </Link>
+              <div>
+                <label className="mb-2 block text-xs font-black uppercase tracking-[0.25em] text-cyan-300">
+                  Nombre del atleta
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+                  <input
+                    name="athlete_name"
+                    defaultValue={athleteName}
+                    placeholder="Escribe el nombre para analitico individual"
+                    className={`${inputClass} pl-11`}
+                  />
+                </div>
+              </div>
+            </div>
 
-            {athletes?.map((athlete: any) => (
+            <div>
+              <label className="mb-2 block text-xs font-black uppercase tracking-[0.25em] text-cyan-300">
+                Periodo
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {periodLinks.map((item) => {
+                  const query = buildQueryString({
+                    view,
+                    athlete_name: athleteName,
+                    period: item.value,
+                    date_from: item.value === "range" ? dateFrom : "",
+                    date_to: item.value === "range" ? dateTo : "",
+                  });
+
+                  return (
+                    <Link
+                      key={item.value}
+                      href={`/analytics?${query}`}
+                      className={`rounded-2xl px-4 py-2 text-sm font-black transition ${
+                        period === item.value
+                          ? "bg-cyan-400 text-slate-950"
+                          : "border border-white/10 bg-white/10 text-slate-300 hover:bg-white/20"
+                      }`}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+
+            <input type="hidden" name="period" value={period} />
+
+            {period === "range" && (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-xs font-black uppercase tracking-[0.25em] text-cyan-300">
+                    Desde
+                  </label>
+                  <input
+                    name="date_from"
+                    type="date"
+                    defaultValue={dateFrom}
+                    className={inputClass}
+                  />
+                </div>
+                <div>
+                  <label className="mb-2 block text-xs font-black uppercase tracking-[0.25em] text-cyan-300">
+                    Hasta
+                  </label>
+                  <input
+                    name="date_to"
+                    type="date"
+                    defaultValue={dateTo}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-3">
+              <button className="inline-flex items-center gap-2 rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-300">
+                <BarChart3 size={16} />
+                Aplicar filtros
+              </button>
               <Link
-                key={athlete.id}
-                href={`/analytics?athlete_id=${athlete.id}`}
-                className={`rounded-2xl px-4 py-2 text-sm font-black transition ${
-                  safeSelectedAthleteId === athlete.id
-                    ? "bg-cyan-400 text-slate-950"
-                    : "bg-white/10 text-slate-300 hover:bg-white/20"
-                }`}
+                href="/analytics"
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/20"
               >
-                {athlete.users?.name}
+                <X size={16} />
+                Limpiar
               </Link>
-            ))}
-          </div>
+            </div>
+          </form>
         </section>
 
-        <form
-  method="GET"
-  className="mb-8 grid grid-cols-1 gap-4 rounded-[2rem] border border-cyan-400/10 bg-white/[0.04] p-5 shadow-2xl backdrop-blur-2xl md:grid-cols-4"
->
-  <input type="hidden" name="athlete_id" value={safeSelectedAthleteId} />
+        <section className="grid grid-cols-2 gap-5 xl:grid-cols-5">
+          <Metric icon={Target} title="Accuracy" value={`${accuracy}%`} />
+          <Metric icon={Crosshair} title="Promedio" value={averageScore} />
+          <Metric icon={Trophy} title="X Count" value={xCount} accent="text-yellow-300" />
+          <Metric icon={CalendarDays} title="Sesiones" value={trainings?.length || 0} />
+          <Metric icon={Users} title="Atletas" value={activeAthletesCount} />
+        </section>
 
-  <input
-    name="date_from"
-    type="date"
-    defaultValue={dateFrom}
-    className="h-12 rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-bold text-white outline-none focus:border-cyan-400"
-  />
-
-  <input
-    name="date_to"
-    type="date"
-    defaultValue={dateTo}
-    className="h-12 rounded-2xl border border-white/10 bg-slate-950/80 px-4 text-sm font-bold text-white outline-none focus:border-cyan-400"
-  />
-
-  <button className="rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-300">
-    Aplicar fechas
-  </button>
-
-  <Link
-    href={safeSelectedAthleteId ? `/analytics?athlete_id=${safeSelectedAthleteId}` : "/analytics"}
-    className="flex items-center justify-center rounded-2xl border border-white/10 bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/20"
-  >
-    Limpiar fechas
-  </Link>
-</form>
-
-        <div className="mb-8 grid grid-cols-2 gap-5 xl:grid-cols-4">
-          <div className="rounded-[2rem] border border-cyan-400/10 bg-white/[0.04] p-6 shadow-[0_0_50px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
-            <p className="text-sm font-bold text-slate-400">
-              Accuracy promedio
-            </p>
-
-            <h2 className="mt-3 text-5xl font-black text-cyan-300">
-              {accuracy}%
-            </h2>
+        {view === "athlete" && athleteName && matchedAthletes.length === 0 && (
+          <div className="rounded-[2rem] border border-yellow-300/20 bg-yellow-400/10 p-5 text-sm font-bold text-yellow-100">
+            No encontre atletas con ese nombre dentro de tu alcance.
           </div>
-
-          <div className="rounded-[2rem] border border-cyan-400/10 bg-white/[0.04] p-6 shadow-[0_0_50px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
-            <p className="text-sm font-bold text-slate-400">
-              Promedio general
-            </p>
-
-            <h2 className="mt-3 text-5xl font-black text-cyan-300">
-              {averageScore}
-            </h2>
-          </div>
-
-          <div className="rounded-[2rem] border border-cyan-400/10 bg-white/[0.04] p-6 shadow-[0_0_50px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
-            <p className="text-sm font-bold text-slate-400">
-              Flechas registradas
-            </p>
-
-            <h2 className="mt-3 text-5xl font-black text-cyan-300">
-              {totalArrows}
-            </h2>
-          </div>
-
-          <div className="rounded-[2rem] border border-cyan-400/10 bg-white/[0.04] p-6 shadow-[0_0_50px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
-            <p className="text-sm font-bold text-slate-400">X Count</p>
-
-            <h2 className="mt-3 text-5xl font-black text-yellow-300">
-              {xCount}
-            </h2>
-          </div>
-        </div>
+        )}
 
         <AnalyticsInsights
-        accuracy={accuracy}
-        averageScore={averageScore}
-        xCount={xCount}
-        totalArrows={totalArrows}
-        trainingsCount={trainings?.length || 0}
+          accuracy={accuracy}
+          averageScore={averageScore}
+          xCount={xCount}
+          totalArrows={totalArrows}
+          trainingsCount={trainings?.length || 0}
         />
-        
+
         <DashboardAnalytics
           monthlyScores={monthlyScores}
           arrowDistribution={arrowDistribution}
           accuracy={accuracy}
         />
-
-        
-
       </div>
     </main>
+  );
+}
+
+function Metric({
+  icon: Icon,
+  title,
+  value,
+  accent = "text-cyan-300",
+}: {
+  icon: React.ComponentType<{ size?: number }>;
+  title: string;
+  value: number | string;
+  accent?: string;
+}) {
+  return (
+    <div className="tal-metric-card">
+      <span className="tal-metric-icon">
+        <Icon size={20} />
+      </span>
+      <p className="tal-metric-label">{title}</p>
+      <p className={`tal-metric-value ${accent}`}>{value}</p>
+    </div>
   );
 }
