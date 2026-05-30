@@ -16,6 +16,7 @@ import {
   AreaChart,
   Cell,
 } from "recharts";
+import { Activity, Crosshair, Radar } from "lucide-react";
 
 type Props = {
   monthlyScores: {
@@ -37,7 +38,7 @@ export function DashboardAnalytics({
   accuracy,
 }: Props) {
   const cardClass =
-    "relative overflow-hidden rounded-[2rem] border border-cyan-400/10 bg-white/[0.04] p-6 shadow-[0_0_60px_rgba(0,0,0,0.45)] backdrop-blur-2xl";
+    "tal-chart-card";
 
   const radialData = [
     {
@@ -73,7 +74,7 @@ export function DashboardAnalytics({
           TAL Analytics Engine
         </p>
 
-        <h2 className="mt-3 text-4xl font-black tracking-tight">
+        <h2 className="mt-3 text-4xl font-black tracking-tight tal-text-glow">
           Performance Analytics
         </h2>
 
@@ -90,6 +91,9 @@ export function DashboardAnalytics({
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(34,211,238,0.08),transparent_45%)]" />
 
           <div className="relative z-10 mb-5">
+            <span className="tal-metric-icon">
+              <Activity size={20} />
+            </span>
             <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-300">
               Score Evolution
             </p>
@@ -178,6 +182,9 @@ export function DashboardAnalytics({
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.08),transparent_60%)]" />
 
           <div className="relative z-10 mb-5">
+            <span className="tal-metric-icon">
+              <Radar size={20} />
+            </span>
             <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-300">
               Accuracy
             </p>
@@ -226,6 +233,9 @@ export function DashboardAnalytics({
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(34,211,238,0.08),transparent_50%)]" />
 
         <div className="relative z-10 mb-5">
+          <span className="tal-metric-icon">
+            <Crosshair size={20} />
+          </span>
           <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-300">
             Arrow Distribution
           </p>

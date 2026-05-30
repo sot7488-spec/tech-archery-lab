@@ -33,6 +33,23 @@ export default async function ClubDashboardPage({ params }: PageProps) {
 
   if (!user) redirect("/login");
 
+  const { data: profile } = await supabase
+    .from("users")
+    .select("role, club_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile) redirect("/login");
+
+  if (profile.role === "coach" && profile.club_id !== id) {
+    if (profile.club_id) redirect(`/clubs/${profile.club_id}`);
+    redirect("/");
+  }
+
+  const isCoach = profile.role === "coach";
+  const backHref = isCoach ? "/" : "/clubs";
+  const backLabel = isCoach ? "Dashboard" : "Clubs";
+
   const { data: club, error: clubError } = await supabase
     .from("clubs")
     .select("*")
@@ -60,10 +77,10 @@ export default async function ClubDashboardPage({ params }: PageProps) {
           </pre>
 
           <Link
-            href="/clubs"
+            href={backHref}
             className="mt-6 inline-flex rounded-2xl bg-cyan-400 px-5 py-3 font-black text-slate-950"
           >
-            Volver a clubs
+            Volver a {backLabel}
           </Link>
         </div>
       </main>
@@ -134,7 +151,7 @@ export default async function ClubDashboardPage({ params }: PageProps) {
   const latestSessions = sessions.slice(0, 5);
 
   const statCardClass =
-    "relative overflow-hidden rounded-[1.7rem] border border-cyan-400/10 bg-white/[0.04] p-5 shadow-[0_0_40px_rgba(0,0,0,0.25)] backdrop-blur-xl";
+    "tal-metric-card";
 
   return (
     <main className="min-h-screen overflow-hidden bg-slate-950 px-5 py-7 text-white">
@@ -147,11 +164,11 @@ export default async function ClubDashboardPage({ params }: PageProps) {
       <div className="mx-auto max-w-7xl">
         <div className="mb-6 flex items-center justify-between">
           <Link
-            href="/clubs"
+            href={backHref}
             className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-cyan-300 backdrop-blur-xl transition hover:border-cyan-300/30 hover:bg-cyan-400/10"
           >
             <ArrowLeft size={16} />
-            Clubs
+            {backLabel}
           </Link>
 
           <span

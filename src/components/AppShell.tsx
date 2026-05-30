@@ -13,6 +13,7 @@ export default function AppShell({
   const hideSidebar =
     pathname === "/login" ||
     pathname === "/register" ||
+    pathname.startsWith("/invite/") ||
     pathname.startsWith("/login/") ||
     pathname.startsWith("/register/");
 

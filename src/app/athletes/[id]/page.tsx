@@ -3,7 +3,27 @@ export const dynamic = "force-dynamic";
 import { TargetHeatmap } from "@/components/target-heatmap";
 import { AthleteCharts } from "@/components/athlete-charts";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { redirect } from "next/navigation";
+import {
+  Activity,
+  ArrowRight,
+  BarChart3,
+  CalendarClock,
+  CheckCircle2,
+  Crosshair,
+  Filter,
+  Flame,
+  Gauge,
+  Hand,
+  Medal,
+  Sparkles,
+  Target,
+  Trophy,
+  UserRound,
+  X,
+  type LucideIcon,
+} from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function AthleteProfilePage({
   params,
@@ -22,6 +42,19 @@ export default async function AthleteProfilePage({
   const from = filters.from || "";
   const to = filters.to || "";
   const distance = filters.distance || "";
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) redirect("/login");
+
+  const { data: currentUser } = await supabase
+    .from("users")
+    .select("role, club_id")
+    .eq("id", user.id)
+    .single();
 
   const { data: athlete, error } = await supabase
     .from("athlete_profiles")
@@ -65,6 +98,14 @@ export default async function AthleteProfilePage({
         </div>
       </main>
     );
+  }
+
+  if (currentUser?.role === "coach" && athlete.club_id !== currentUser.club_id) {
+    redirect("/athletes");
+  }
+
+  if (currentUser?.role === "athlete" && athlete.user_id !== user.id) {
+    redirect("/athletes/profile");
   }
 
   const trainings = athlete.training_sessions || [];
@@ -118,6 +159,20 @@ export default async function AthleteProfilePage({
   const activeTrainings = filteredTrainings.filter(
     (training: any) => training.status !== "completed"
   ).length;
+
+  const primaryStats: StatItem[] = [
+    { title: "Entrenamientos", value: totalTrainings, icon: Activity },
+    { title: "Series", value: totalSeries, icon: BarChart3 },
+    { title: "Flechas", value: totalArrows, icon: Crosshair },
+    { title: "Promedio", value: averageScore, icon: Gauge, accent: true },
+  ];
+
+  const secondaryStats: StatItem[] = [
+    { title: "Score acumulado", value: totalScore, icon: Target },
+    { title: "Total X", value: totalX, icon: X, tone: "text-yellow-300" },
+    { title: "Activos", value: activeTrainings, icon: CalendarClock },
+    { title: "Finalizados", value: completedTrainings, icon: CheckCircle2 },
+  ];
 
   const trainingChartData = filteredTrainings
     .map((training: any) => {
@@ -308,7 +363,7 @@ export default async function AthleteProfilePage({
     <main className="min-h-screen p-8 text-white">
       
 
-      <section className="mb-6 mt-6 overflow-hidden rounded-[32px] border border-white/10 bg-gradient-to-br from-cyan-500/20 via-slate-900 to-blue-500/10 p-6 shadow-2xl backdrop-blur md:p-8">
+      <section className="tal-hero-panel mb-6 mt-6 p-6 md:p-8">
   <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
     <div className="flex flex-col gap-5 md:flex-row md:items-center">
       <div className="relative">
@@ -322,18 +377,18 @@ export default async function AthleteProfilePage({
       </div>
 
       <div>
-        <p className="mb-2 text-xs font-bold uppercase tracking-[0.35em] text-cyan-300">
+        <p className="mb-2 text-xs font-black uppercase tracking-[0.35em] text-cyan-300">
           Athlete Performance
         </p>
 
-        <h1 className="text-4xl font-black tracking-tight text-white md:text-5xl">
+        <h1 className="text-4xl font-black tracking-tight text-white tal-text-glow md:text-5xl">
           {athlete.users?.name}
         </h1>
 
         <p className="mt-2 text-slate-300">{athlete.users?.email}</p>
 
         <div className="mt-4 flex flex-wrap gap-3">
-          <span className="rounded-full border border-cyan-400/20 bg-cyan-400/20 px-4 py-2 text-sm font-bold text-cyan-300">
+          <span className="tal-chip">
             {athlete.bow_type || "Arco"}
           </span>
 
@@ -351,12 +406,13 @@ export default async function AthleteProfilePage({
     <div className="flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row">
       <Link
         href={`/trainings?athlete_id=${athlete.id}`}
-        className="rounded-2xl bg-cyan-400 px-5 py-3 text-center font-black text-slate-950 shadow-lg shadow-cyan-500/20 transition hover:scale-[1.02] hover:bg-cyan-300"
+        className="tal-button inline-flex items-center justify-center gap-2"
       >
+        <ArrowRight size={18} />
         Ver entrenamientos
       </Link>
 
-      <div className="rounded-2xl border border-white/10 bg-white/10 px-5 py-3 text-center">
+      <div className="tal-metric-card px-5 py-3 text-center">
         <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
           Libras
         </p>
@@ -368,28 +424,33 @@ export default async function AthleteProfilePage({
   </div>
 </section>
 
-      <section className="mb-6 rounded-[32px] border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur">
-        <h3 className="mb-5 text-2xl font-black text-white">Filtros</h3>
+      <section className="tal-chart-card mb-6">
+        <div className="mb-5 flex items-center gap-3">
+          <span className="tal-metric-icon mb-0">
+            <Filter size={20} />
+          </span>
+          <h3 className="text-2xl font-black text-white">Filtros</h3>
+        </div>
 
         <form className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <input
             name="from"
             type="date"
             defaultValue={from}
-            className="rounded-2xl border border-white/10 bg-[#020617]/60 p-4 text-white placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
+            className="tal-input"
           />
 
           <input
             name="to"
             type="date"
             defaultValue={to}
-            className="rounded-2xl border border-white/10 bg-[#020617]/60 p-4 text-white placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
+            className="tal-input"
           />
 
           <select
             name="distance"
             defaultValue={distance}
-            className="rounded-2xl border border-white/10 bg-[#020617]/60 p-4 text-white focus:border-cyan-400 focus:outline-none"
+            className="tal-input"
           >
             <option value="">Todas las distancias</option>
             <option value="18">18 m</option>
@@ -400,7 +461,7 @@ export default async function AthleteProfilePage({
             <option value="70">70 m</option>
           </select>
 
-          <button className="rounded-2xl bg-cyan-400 p-4 font-black text-slate-950 transition hover:scale-[1.02] hover:bg-cyan-300">
+          <button className="tal-button">
             Aplicar filtros
           </button>
         </form>
@@ -415,17 +476,15 @@ export default async function AthleteProfilePage({
      
 
       <section className="mb-6 grid grid-cols-1 gap-5 md:grid-cols-4">
-        <StatCard title="Entrenamientos" value={totalTrainings} />
-        <StatCard title="Series" value={totalSeries} />
-        <StatCard title="Flechas" value={totalArrows} />
-        <StatCard title="Promedio" value={averageScore} />
+        {primaryStats.map((stat) => (
+          <StatCard key={stat.title} {...stat} />
+        ))}
       </section>
 
       <section className="mb-6 grid grid-cols-1 gap-5 md:grid-cols-4">
-        <StatCard title="Score acumulado" value={totalScore} />
-        <StatCard title="Total X" value={totalX} />
-        <StatCard title="Activos" value={activeTrainings} />
-        <StatCard title="Finalizados" value={completedTrainings} />
+        {secondaryStats.map((stat) => (
+          <StatCard key={stat.title} {...stat} />
+        ))}
       </section>
 
       <AthleteCharts
@@ -435,8 +494,11 @@ export default async function AthleteProfilePage({
       />
 
       <section className="mb-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <div className="rounded-[32px] border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur">
-          <h3 className="mb-5 text-2xl font-black text-white">
+        <div className="tal-chart-card">
+          <h3 className="mb-5 flex items-center gap-3 text-2xl font-black text-white tal-text-glow">
+            <span className="tal-metric-icon mb-0">
+              <Trophy size={20} />
+            </span>
             PRs / Récords personales
           </h3>
 
@@ -477,8 +539,11 @@ export default async function AthleteProfilePage({
           </div>
         </div>
 
-        <div className="rounded-[32px] border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur">
-          <h3 className="mb-5 text-2xl font-black text-white">
+        <div className="tal-chart-card">
+          <h3 className="mb-5 flex items-center gap-3 text-2xl font-black text-white tal-text-glow">
+            <span className="tal-metric-icon mb-0">
+              <Sparkles size={20} />
+            </span>
             Análisis automático
           </h3>
 
@@ -486,7 +551,7 @@ export default async function AthleteProfilePage({
             {insights.map((insight, index) => (
               <div
                 key={index}
-                className="rounded-2xl border border-cyan-400/10 bg-cyan-400/5 p-4 text-sm text-slate-200"
+                className="rounded-2xl border border-cyan-400/10 bg-cyan-400/5 p-4 text-sm text-slate-200 shadow-[0_0_28px_rgba(34,211,238,0.06)]"
               >
                 {insight}
               </div>
@@ -496,8 +561,11 @@ export default async function AthleteProfilePage({
       </section>
 
       <section className="mb-6 grid grid-cols-1 gap-5 lg:grid-cols-3">
-        <div className="rounded-[32px] border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur lg:col-span-2">
-          <h3 className="mb-5 text-2xl font-black text-white">
+        <div className="tal-chart-card lg:col-span-2">
+          <h3 className="mb-5 flex items-center gap-3 text-2xl font-black text-white tal-text-glow">
+            <span className="tal-metric-icon mb-0">
+              <Activity size={20} />
+            </span>
             Entrenamientos recientes
           </h3>
 
@@ -506,7 +574,7 @@ export default async function AthleteProfilePage({
               <Link
                 key={training.id}
                 href={`/trainings/${training.id}`}
-                className="flex justify-between rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:bg-white/10"
+                className="flex justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.045] p-4 transition hover:border-cyan-400/30 hover:bg-cyan-400/10"
               >
                 <div>
                   <p className="font-bold text-white">
@@ -539,8 +607,13 @@ export default async function AthleteProfilePage({
           </div>
         </div>
 
-        <div className="rounded-[32px] border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur">
-          <h3 className="mb-5 text-2xl font-black text-white">Mejor serie</h3>
+        <div className="tal-chart-card">
+          <h3 className="mb-5 flex items-center gap-3 text-2xl font-black text-white tal-text-glow">
+            <span className="tal-metric-icon mb-0">
+              <Medal size={20} />
+            </span>
+            Mejor serie
+          </h3>
 
           {bestSeries ? (
             <div>
@@ -565,11 +638,11 @@ export default async function AthleteProfilePage({
       <section className="mb-6 grid grid-cols-1 gap-5 md:grid-cols-4">
         <InfoCard title="Categoría" value={athlete.category || "-"} />
         <InfoCard title="Mano dominante" value={athlete.dominant_hand || "-"} />
-        <InfoCard title="Libras" value={athlete.draw_weight_lbs || "-"} />
-        <InfoCard title="Tipo de arco" value={athlete.bow_type || "-"} />
+        <InfoCard title="Libras" value={athlete.draw_weight_lbs || "-"} icon={Flame} />
+        <InfoCard title="Tipo de arco" value={athlete.bow_type || "-"} icon={Target} />
       </section>
 
-      <section className="mt-8 rounded-[32px] border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur">
+      <section className="tal-chart-card mt-8">
         <TargetHeatmap arrows={allArrows} />
       </section>
     </main>
@@ -579,17 +652,26 @@ export default async function AthleteProfilePage({
 function StatCard({
   title,
   value,
+  icon: Icon,
+  tone = "text-white",
+  accent = false,
 }: {
   title: string;
   value: string | number;
+  icon: LucideIcon;
+  tone?: string;
+  accent?: boolean;
 }) {
   return (
-    <div className="rounded-[28px] border border-white/10 bg-gradient-to-br from-white/10 to-white/5 p-6 shadow-2xl backdrop-blur">
-      <p className="text-sm uppercase tracking-[0.2em] text-slate-400">
+    <div className={accent ? "tal-metric-card border-cyan-300/30 bg-cyan-400/10" : "tal-metric-card"}>
+      <span className="tal-metric-icon">
+        <Icon size={20} />
+      </span>
+      <p className="tal-metric-label">
         {title}
       </p>
 
-      <h2 className="mt-3 text-5xl font-black text-white">{value}</h2>
+      <h2 className={`tal-metric-value ${tone}`}>{value}</h2>
     </div>
   );
 }
@@ -604,14 +686,14 @@ function RecordCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-3xl border border-cyan-400/10 bg-cyan-400/5 p-5 shadow-xl backdrop-blur">
-      <p className="text-xs uppercase tracking-[0.2em] text-cyan-300">
+    <div className="tal-metric-card">
+      <p className="tal-metric-label text-cyan-300">
         {title}
       </p>
 
-      <h4 className="mt-3 text-5xl font-black text-white">{value}</h4>
+      <h4 className="tal-metric-value">{value}</h4>
 
-      <p className="mt-2 text-sm text-slate-400">{detail}</p>
+      <p className="relative z-10 mt-2 text-sm text-slate-400">{detail}</p>
     </div>
   );
 }
@@ -619,17 +701,30 @@ function RecordCard({
 function InfoCard({
   title,
   value,
+  icon: Icon = UserRound,
 }: {
   title: string;
   value: string | number;
+  icon?: LucideIcon;
 }) {
   return (
-    <div className="rounded-[28px] border border-white/10 bg-gradient-to-br from-white/10 to-white/5 p-5 shadow-2xl backdrop-blur">
-      <p className="text-sm uppercase tracking-[0.2em] text-slate-400">
+    <div className="tal-metric-card">
+      <span className="tal-metric-icon">
+        <Icon size={20} />
+      </span>
+      <p className="tal-metric-label">
         {title}
       </p>
 
-      <h2 className="mt-3 text-2xl font-black text-white">{value}</h2>
+      <h2 className="relative z-10 mt-3 text-2xl font-black text-white">{value}</h2>
     </div>
   );
 }
+
+type StatItem = {
+  title: string;
+  value: string | number;
+  icon: LucideIcon;
+  tone?: string;
+  accent?: boolean;
+};

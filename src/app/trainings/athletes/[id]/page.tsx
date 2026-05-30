@@ -40,7 +40,7 @@ export default async function AthleteTrainingsPage({
 
   const { data: currentUser } = await supabase
     .from("users")
-    .select("role")
+    .select("role, club_id")
     .eq("id", user.id)
     .single();
 
@@ -49,6 +49,7 @@ export default async function AthleteTrainingsPage({
     .select(`
       id,
       user_id,
+      club_id,
       category,
       bow_type,
       users!athlete_profiles_user_id_fkey (
@@ -96,6 +97,25 @@ export default async function AthleteTrainingsPage({
     }
   }
 
+  if (currentUser?.role === "coach" && athlete.club_id !== currentUser.club_id) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
+        <div className="rounded-[2rem] border border-red-400/20 bg-red-500/10 p-8 text-center">
+          <h1 className="text-2xl font-black text-red-300">
+            Solo puedes ver entrenamientos de atletas de tu club.
+          </h1>
+
+          <Link
+            href="/trainings"
+            className="mt-5 inline-block rounded-2xl bg-cyan-400 px-5 py-3 font-black text-slate-950"
+          >
+            Volver a entrenamientos
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
   const { data: trainings, error } = await supabase
     .from("training_sessions")
     .select(`
@@ -140,7 +160,7 @@ export default async function AthleteTrainingsPage({
       .length || 0;
 
   const statCardClass =
-    "rounded-[1.35rem] border border-cyan-400/10 bg-white/[0.04] px-4 py-3 shadow-[0_0_25px_rgba(0,0,0,0.25)] backdrop-blur-2xl";
+    "tal-metric-card px-4 py-3";
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-slate-950 px-4 py-5 text-white md:px-6">

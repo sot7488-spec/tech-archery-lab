@@ -1,5 +1,6 @@
 "use client";
 
+import { BarChart3, Crosshair, Gauge, LineChart as LineChartIcon, Medal, Target, TrendingDown, Trophy } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -67,17 +68,17 @@ export function TrainingAnalytics({
     })
   );
 
-  const cardClass =
-    "rounded-[2rem] border border-cyan-400/10 bg-white/[0.04] p-5 shadow-[0_0_40px_rgba(0,0,0,0.35)] backdrop-blur-xl";
+  const cardClass = "tal-metric-card";
+  const chartCardClass = "tal-chart-card";
 
   return (
-    <section className="mb-8 rounded-[2.5rem] border border-cyan-400/10 bg-gradient-to-br from-slate-900 via-slate-950 to-cyan-950/20 p-6 shadow-[0_0_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+    <section className="tal-hero-panel mb-8 p-6">
       <div className="mb-6">
         <p className="text-xs font-black uppercase tracking-[0.35em] text-cyan-300">
           TAL Performance Analytics
         </p>
 
-        <h2 className="mt-2 text-3xl font-black">
+        <h2 className="mt-2 text-3xl font-black tal-text-glow">
           Analíticas dinámicas
         </h2>
 
@@ -88,74 +89,95 @@ export function TrainingAnalytics({
 
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-6">
         <div className={cardClass}>
-          <p className="text-sm font-bold text-slate-400">
+          <span className="tal-metric-icon">
+            <Gauge size={20} />
+          </span>
+          <p className="tal-metric-label">
             Precisión
           </p>
 
-          <h3 className="mt-2 text-4xl font-black text-cyan-300">
+          <h3 className="tal-metric-value text-cyan-300">
             {accuracy}%
           </h3>
         </div>
 
         <div className={cardClass}>
-          <p className="text-sm font-bold text-slate-400">
+          <span className="tal-metric-icon">
+            <BarChart3 size={20} />
+          </span>
+          <p className="tal-metric-label">
             Promedio
           </p>
 
-          <h3 className="mt-2 text-4xl font-black text-cyan-300">
+          <h3 className="tal-metric-value text-cyan-300">
             {averageArrow}
           </h3>
         </div>
 
         <div className={cardClass}>
-          <p className="text-sm font-bold text-slate-400">
+          <span className="tal-metric-icon">
+            <Trophy size={20} />
+          </span>
+          <p className="tal-metric-label">
             Mejor serie
           </p>
 
-          <h3 className="mt-2 text-4xl font-black text-cyan-300">
+          <h3 className="tal-metric-value text-cyan-300">
             {bestSeries}
           </h3>
         </div>
 
         <div className={cardClass}>
-          <p className="text-sm font-bold text-slate-400">
+          <span className="tal-metric-icon">
+            <TrendingDown size={20} />
+          </span>
+          <p className="tal-metric-label">
             Peor serie
           </p>
 
-          <h3 className="mt-2 text-4xl font-black text-cyan-300">
+          <h3 className="tal-metric-value text-cyan-300">
             {worstSeries}
           </h3>
         </div>
 
         <div className={cardClass}>
-          <p className="text-sm font-bold text-slate-400">
+          <span className="tal-metric-icon">
+            <Medal size={20} />
+          </span>
+          <p className="tal-metric-label">
             X Count
           </p>
 
-          <h3 className="mt-2 text-4xl font-black text-yellow-300">
+          <h3 className="tal-metric-value text-yellow-300">
             {xCount}
           </h3>
         </div>
 
         <div className={cardClass}>
-          <p className="text-sm font-bold text-slate-400">
+          <span className="tal-metric-icon">
+            <Target size={20} />
+          </span>
+          <p className="tal-metric-label">
             Miss
           </p>
 
-          <h3 className="mt-2 text-4xl font-black text-red-300">
+          <h3 className="tal-metric-value text-red-300">
             {missCount}
           </h3>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        <div className={cardClass}>
+        <div className={chartCardClass}>
           <div className="mb-5">
+            <span className="tal-metric-icon">
+              <LineChartIcon size={20} />
+            </span>
             <p className="text-xs font-black uppercase tracking-widest text-cyan-300">
               Score Progression
             </p>
 
-            <h3 className="mt-2 text-2xl font-black">
+            <h3 className="mt-2 text-2xl font-black tal-text-glow">
               Evolución de score
             </h3>
           </div>
@@ -183,13 +205,16 @@ export function TrainingAnalytics({
           </div>
         </div>
 
-        <div className={cardClass}>
+        <div className={chartCardClass}>
           <div className="mb-5">
+            <span className="tal-metric-icon">
+              <Crosshair size={20} />
+            </span>
             <p className="text-xs font-black uppercase tracking-widest text-cyan-300">
               Arrow Distribution
             </p>
 
-            <h3 className="mt-2 text-2xl font-black">
+            <h3 className="mt-2 text-2xl font-black tal-text-glow">
               Distribución de impactos
             </h3>
           </div>

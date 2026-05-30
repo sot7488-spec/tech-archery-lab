@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import {
   Trophy,
   Target,
@@ -9,10 +10,25 @@ import {
   Calendar,
   Crosshair,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 import { createConadeMark } from "./actions";
 
 export default async function ConadePage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.role !== "admin") redirect("/");
+
   const { data: marks, error } = await supabase
     .from("conade_marks")
     .select("*")
@@ -25,7 +41,7 @@ export default async function ConadePage() {
     "rounded-2xl border border-cyan-400/10 bg-slate-950/80 p-4 text-sm font-bold text-white outline-none placeholder:text-slate-600 transition focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-400/10";
 
   const statCardClass =
-    "relative overflow-hidden rounded-[1.7rem] border border-cyan-400/10 bg-white/[0.04] p-5 shadow-[0_0_40px_rgba(0,0,0,0.25)] backdrop-blur-xl";
+    "tal-metric-card";
 
   return (
     <main className="min-h-screen overflow-hidden bg-slate-950 px-5 py-7 text-white">

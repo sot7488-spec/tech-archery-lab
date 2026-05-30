@@ -1,9 +1,27 @@
 "use server";
 
-import { supabase } from "@/lib/supabase";
 import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
 
 export async function createTraining(formData: FormData) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("No autenticado.");
+
+  const { data: currentUser } = await supabase
+    .from("users")
+    .select("role, club_id")
+    .eq("id", user.id)
+    .single();
+
+  if (currentUser?.role !== "admin" && currentUser?.role !== "coach") {
+    throw new Error("No tienes permiso para crear entrenamientos.");
+  }
+
   const athlete_id = String(formData.get("athlete_id") || "");
   const training_date = String(formData.get("training_date") || "");
   const location = String(formData.get("location") || "");
@@ -47,12 +65,22 @@ export async function createTraining(formData: FormData) {
     throw new Error("No se pudo obtener la información del atleta");
   }
 
+  if (
+    currentUser.role === "coach" &&
+    athleteProfile?.club_id !== currentUser.club_id
+  ) {
+    throw new Error("Solo puedes crear entrenamientos para atletas de tu club.");
+  }
+
   const { data: training, error: trainingError } = await supabase
     .from("training_sessions")
     .insert({
       athlete_id,
       club_id: athleteProfile?.club_id || null,
-      coach_id: athleteProfile?.coach_id || null,
+      coach_id:
+        currentUser.role === "coach"
+          ? user.id
+          : athleteProfile?.coach_id || null,
       equipment_profile_id,
       brace_height_cm,
       training_date,

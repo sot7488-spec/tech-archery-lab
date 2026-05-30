@@ -43,7 +43,7 @@ export default async function AthleteEquipmentPage({ params }: PageProps) {
 
   const { data: currentUser } = await supabase
     .from("users")
-    .select("role")
+    .select("role, club_id")
     .eq("id", user.id)
     .single();
 
@@ -52,6 +52,7 @@ export default async function AthleteEquipmentPage({ params }: PageProps) {
     .select(`
       id,
       user_id,
+      club_id,
       category,
       bow_type,
       users!athlete_profiles_user_id_fkey (
@@ -108,6 +109,25 @@ export default async function AthleteEquipmentPage({ params }: PageProps) {
     }
   }
 
+  if (currentUser?.role === "coach" && athlete.club_id !== currentUser.club_id) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-white">
+        <div className="rounded-[2rem] border border-red-400/20 bg-red-500/10 p-8 text-center">
+          <h1 className="text-2xl font-black text-red-300">
+            Solo puedes ver equipamiento de atletas de tu club.
+          </h1>
+
+          <Link
+            href="/equipment"
+            className="mt-5 inline-block rounded-2xl bg-cyan-400 px-5 py-3 font-black text-slate-950"
+          >
+            Volver a equipamiento
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
   const { data: equipmentRaw, error } = await supabase
     .from("equipment_profiles")
     .select(`
@@ -147,7 +167,7 @@ export default async function AthleteEquipmentPage({ params }: PageProps) {
   const athleteName = athleteUser?.name || "Atleta";
 
   const statCardClass =
-    "relative overflow-hidden rounded-[1.7rem] border border-cyan-400/10 bg-white/[0.04] p-5 shadow-[0_0_40px_rgba(0,0,0,0.25)] backdrop-blur-xl";
+    "tal-metric-card";
 
   return (
     <main className="min-h-screen overflow-hidden bg-slate-950 px-5 py-7 text-white">

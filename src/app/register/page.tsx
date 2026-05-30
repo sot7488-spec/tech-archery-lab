@@ -17,7 +17,6 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
 
   const [clubId, setClubId] = useState("");
-  const [role, setRole] = useState("athlete");
 
   const [message, setMessage] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -76,13 +75,9 @@ export default function RegisterPage() {
       return;
     }
 
-    if (role !== "athlete" && role !== "coach") {
-      setErrorMsg("Rol no permitido.");
-      setLoading(false);
-      return;
-    }
-
     try {
+      const role = "athlete";
+
       const { data: authData, error: authError } =
         await supabase.auth.signUp({
           email: cleanEmail,
@@ -146,7 +141,6 @@ export default function RegisterPage() {
       setEmail("");
       setPassword("");
       setClubId("");
-      setRole("athlete");
     } catch (error) {
       console.error("REGISTER ERROR:", error);
       setErrorMsg("Error inesperado al crear la cuenta.");
@@ -235,16 +229,6 @@ export default function RegisterPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
             />
-
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-4 font-medium text-white outline-none transition focus:border-cyan-400 focus:ring-4 focus:ring-cyan-400/10"
-              required
-            >
-              <option value="athlete">Atleta</option>
-              <option value="coach">Entrenador</option>
-            </select>
 
             <select
               value={clubId}

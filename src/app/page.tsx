@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Activity, BarChart3, Crosshair, Target, Trophy, Users, type LucideIcon } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import ScoreChart from "@/components/ScoreChart";
 import { LogoutButton } from "@/components/LogoutButton";
@@ -23,6 +24,9 @@ export default async function DashboardPage() {
 
   if (!profile) redirect("/login");
 
+  const isCoach = profile.role === "coach";
+  if (isCoach && !profile.club_id) redirect("/");
+
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
     .toISOString()
@@ -32,21 +36,38 @@ export default async function DashboardPage() {
     .toISOString()
     .slice(0, 10);
 
-  const { count: athletesCount } = await supabase
+  let athletesCountQuery = supabase
     .from("athlete_profiles")
     .select("*", { count: "exact", head: true });
 
-  const { count: trainingsCount } = await supabase
+  if (isCoach) athletesCountQuery = athletesCountQuery.eq("club_id", profile.club_id);
+
+  const { count: athletesCount } = await athletesCountQuery;
+
+  let trainingsCountQuery = supabase
     .from("training_sessions")
     .select("*", { count: "exact", head: true });
 
-  const { count: monthTrainingsCount } = await supabase
+  if (isCoach) trainingsCountQuery = trainingsCountQuery.eq("club_id", profile.club_id);
+
+  const { count: trainingsCount } = await trainingsCountQuery;
+
+  let monthTrainingsCountQuery = supabase
     .from("training_sessions")
     .select("*", { count: "exact", head: true })
     .gte("training_date", monthStart)
     .lte("training_date", monthEnd);
 
-  const { data: latestTrainings } = await supabase
+  if (isCoach) {
+    monthTrainingsCountQuery = monthTrainingsCountQuery.eq(
+      "club_id",
+      profile.club_id
+    );
+  }
+
+  const { count: monthTrainingsCount } = await monthTrainingsCountQuery;
+
+  let latestTrainingsQuery = supabase
     .from("training_sessions")
     .select(`
       id,
@@ -68,7 +89,11 @@ export default async function DashboardPage() {
     .order("training_date", { ascending: false })
     .limit(8);
 
-  const { data: monthTrainings } = await supabase
+  if (isCoach) latestTrainingsQuery = latestTrainingsQuery.eq("club_id", profile.club_id);
+
+  const { data: latestTrainings } = await latestTrainingsQuery;
+
+  let monthTrainingsQuery = supabase
     .from("training_sessions")
     .select(`
       id,
@@ -88,7 +113,11 @@ export default async function DashboardPage() {
     .gte("training_date", monthStart)
     .lte("training_date", monthEnd);
 
-  const { data: monthArrows } = await supabase
+  if (isCoach) monthTrainingsQuery = monthTrainingsQuery.eq("club_id", profile.club_id);
+
+  const { data: monthTrainings } = await monthTrainingsQuery;
+
+  let monthArrowsQuery = supabase
     .from("arrows")
     .select(`
       id,
@@ -104,6 +133,15 @@ export default async function DashboardPage() {
     `)
     .gte("series.training_rounds.training_sessions.training_date", monthStart)
     .lte("series.training_rounds.training_sessions.training_date", monthEnd);
+
+  if (isCoach) {
+    monthArrowsQuery = monthArrowsQuery.eq(
+      "series.training_rounds.training_sessions.club_id",
+      profile.club_id
+    );
+  }
+
+  const { data: monthArrows } = await monthArrowsQuery;
 
   const arrowsRegistered = monthArrows?.length || 0;
 
@@ -286,12 +324,12 @@ export default async function DashboardPage() {
         </section>
 
         <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-6">
-          <KpiCard title="Atletas" value={athletesCount || 0} />
-          <KpiCard title="Entrenamientos" value={trainingsCount || 0} />
-          <KpiCard title="Entrenamientos del mes" value={monthTrainingsCount || 0} />
-          <KpiCard title="Flechas registradas" value={arrowsRegistered} />
-          <KpiCard title="Mejor score del mes" value={bestScoreMonth} />
-          <KpiCard title="Prom. últimos" value={avgLatestScore} highlight />
+          <KpiCard title="Atletas" value={athletesCount || 0} icon={Users} />
+          <KpiCard title="Entrenamientos" value={trainingsCount || 0} icon={Activity} />
+          <KpiCard title="Entrenamientos del mes" value={monthTrainingsCount || 0} icon={Target} />
+          <KpiCard title="Flechas registradas" value={arrowsRegistered} icon={Crosshair} />
+          <KpiCard title="Mejor score del mes" value={bestScoreMonth} icon={Trophy} />
+          <KpiCard title="Prom. últimos" value={avgLatestScore} icon={BarChart3} highlight />
         </section>
 
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
@@ -434,30 +472,37 @@ export default async function DashboardPage() {
 function KpiCard({
   title,
   value,
+  icon: Icon,
   highlight = false,
 }: {
   title: string;
   value: number;
+  icon?: LucideIcon;
   highlight?: boolean;
 }) {
   return (
     <div
       className={
         highlight
-          ? "rounded-3xl border border-cyan-400/20 bg-cyan-400/10 p-5 text-white shadow-xl shadow-cyan-500/20 backdrop-blur-xl"
-          : "tal-card tal-glow p-5"
+          ? "tal-metric-card border-cyan-300/30 bg-cyan-400/10"
+          : "tal-metric-card"
       }
     >
+      {Icon && (
+        <span className="tal-metric-icon">
+          <Icon size={20} />
+        </span>
+      )}
       <p
         className={
           highlight
-            ? "text-sm font-bold text-cyan-300"
-            : "text-sm font-bold text-slate-400"
+            ? "tal-metric-label text-cyan-300"
+            : "tal-metric-label"
         }
       >
         {title}
       </p>
-      <p className="mt-2 text-4xl font-black text-white">{value}</p>
+      <p className="tal-metric-value">{value}</p>
     </div>
   );
 }

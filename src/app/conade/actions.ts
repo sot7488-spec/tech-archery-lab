@@ -1,9 +1,26 @@
 "use server";
 
-import { supabase } from "@/lib/supabase";
 import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
 
 export async function createConadeMark(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("No autenticado.");
+
+  const { data: profile } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.role !== "admin") {
+    throw new Error("Solo un admin puede crear marcas CONADE.");
+  }
+
   const { error } = await supabase.from("conade_marks").insert({
     year: Number(formData.get("year")),
     category: String(formData.get("category")),

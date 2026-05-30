@@ -1,9 +1,27 @@
 "use server";
 
-import { supabase } from "@/lib/supabase";
 import { revalidatePath } from "next/cache";
+import { createClient } from "@/lib/supabase/server";
 
 export async function createAthlete(formData: FormData) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("No autenticado.");
+
+  const { data: currentUser } = await supabase
+    .from("users")
+    .select("role, club_id")
+    .eq("id", user.id)
+    .single();
+
+  if (currentUser?.role !== "admin" && currentUser?.role !== "coach") {
+    throw new Error("No tienes permiso para crear atletas.");
+  }
+
   const name = String(formData.get("name") || "").trim();
   const email = String(formData.get("email") || "").trim().toLowerCase();
 
@@ -13,7 +31,9 @@ export async function createAthlete(formData: FormData) {
   const category = String(formData.get("category") || "").trim();
   const bow_type = String(formData.get("bow_type") || "recurvo").trim();
   const dominant_hand = String(formData.get("dominant_hand") || "").trim();
-  const club_id = String(formData.get("club_id") || "").trim();
+  const requestedClubId = String(formData.get("club_id") || "").trim();
+  const club_id =
+    currentUser.role === "coach" ? currentUser.club_id || "" : requestedClubId;
   const association_id = String(formData.get("association_id") || "").trim();
   const federation_id = String(formData.get("federation_id") || "").trim();
   const notes = String(formData.get("notes") || "").trim();
@@ -28,6 +48,10 @@ export async function createAthlete(formData: FormData) {
 
   if (!email) {
     throw new Error("El correo electrónico es obligatorio.");
+  }
+
+  if (currentUser.role === "coach" && !club_id) {
+    throw new Error("Tu usuario coach no tiene club asignado.");
   }
 
   // =========================

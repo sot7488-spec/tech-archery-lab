@@ -1,58 +1,185 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import {
+  Activity,
+  BarChart3,
+  CloudSun,
+  Crosshair,
+  Gauge,
+  LocateFixed,
+  MapPin,
+  Ruler,
+  Search,
+  Target,
+  Thermometer,
+  Trophy,
+  Waves,
+  Wind,
+  type LucideIcon,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { createTraining } from "./actions";
+import TrainingCreateModal from "./TrainingCreateModal";
+
+type SearchParams = {
+  athlete_id?: string;
+  athlete_name?: string;
+  period?: string;
+  from?: string;
+  to?: string;
+};
+
+type AthleteOption = {
+  id: string;
+  club_id?: string | null;
+  users?: { name?: string | null } | { name?: string | null }[] | null;
+};
+
+type EquipmentOption = {
+  id: string;
+  name: string | null;
+  athlete_id: string;
+  is_active: boolean | null;
+};
+
+function getRelatedName(relation: AthleteOption["users"] | undefined) {
+  if (Array.isArray(relation)) return relation[0]?.name || "Atleta sin nombre";
+  return relation?.name || "Atleta sin nombre";
+}
+
+function toDateInputValue(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function getPeriodRange(period: string) {
+  const now = new Date();
+
+  if (period === "today") {
+    const today = toDateInputValue(now);
+    return { from: today, to: today };
+  }
+
+  if (period === "week") {
+    const day = now.getDay();
+    const mondayOffset = day === 0 ? -6 : 1 - day;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + mondayOffset);
+
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+
+    return { from: toDateInputValue(monday), to: toDateInputValue(sunday) };
+  }
+
+  if (period === "month") {
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    return { from: toDateInputValue(firstDay), to: toDateInputValue(lastDay) };
+  }
+
+  return { from: "", to: "" };
+}
+
+function formatIndicator(value: unknown, fallback = "-") {
+  if (value === null || value === undefined || value === "") return fallback;
+  return String(value);
+}
 
 export default async function TrainingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ athlete_id?: string }>;
+  searchParams: Promise<SearchParams>;
 }) {
   const supabase = await createClient();
-
   const params = await searchParams;
+
   const selectedAthleteId = params.athlete_id || "";
+  const athleteNameFilter = params.athlete_name?.trim().toLowerCase() || "";
+  const period = params.period || "";
+  const rangeFromParams = params.from || "";
+  const rangeToParams = params.to || "";
+  const periodRange = getPeriodRange(period);
+  const fromDate = period === "range" ? rangeFromParams : periodRange.from;
+  const toDate = period === "range" ? rangeToParams : periodRange.to;
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  let isAthlete = false;
+  if (!user) redirect("/login");
+
+  const { data: currentUser } = await supabase
+    .from("users")
+    .select("role, club_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!currentUser) redirect("/login");
+
+  const isAthlete = currentUser.role === "athlete";
+  const isCoach = currentUser.role === "coach";
+  const coachClubId = currentUser.club_id || "";
+
+  if (isCoach && !coachClubId) redirect("/");
+
   let currentAthleteId = selectedAthleteId;
 
-  if (user) {
-    const { data: currentUser } = await supabase
-      .from("users")
-      .select("role")
-      .eq("id", user.id)
+  if (isAthlete) {
+    const { data: athleteProfile } = await supabase
+      .from("athlete_profiles")
+      .select("id")
+      .eq("user_id", user.id)
       .single();
 
-    isAthlete = currentUser?.role === "athlete";
-
-    if (isAthlete) {
-      const { data: athleteProfile } = await supabase
-        .from("athlete_profiles")
-        .select("id")
-        .eq("user_id", user.id)
-        .single();
-
-      currentAthleteId = athleteProfile?.id || "";
-    }
+    currentAthleteId = athleteProfile?.id || "";
   }
 
-  const { data: athletes } = await supabase.from("athlete_profiles").select(`
-    id,
-    users!athlete_profiles_user_id_fkey (
-      name
-    )
-  `);
+  let athletesQuery = supabase
+    .from("athlete_profiles")
+    .select(`
+      id,
+      club_id,
+      users!athlete_profiles_user_id_fkey (
+        name
+      )
+    `)
+    .order("created_at", { ascending: false });
 
-  const { data: equipmentProfiles } = await supabase
+  if (isCoach) {
+    athletesQuery = athletesQuery.eq("club_id", coachClubId);
+  }
+
+  const { data: athletesRaw } = await athletesQuery;
+  const athletes = (athletesRaw || []) as AthleteOption[];
+  const scopedAthleteIds = athletes.map((athlete) => athlete.id);
+
+  if (isCoach && currentAthleteId && !scopedAthleteIds.includes(currentAthleteId)) {
+    currentAthleteId = "";
+  }
+
+  const filteredAthletes = athleteNameFilter
+    ? athletes.filter((athlete) =>
+        getRelatedName(athlete.users).toLowerCase().includes(athleteNameFilter)
+      )
+    : athletes;
+
+  const nameFilteredAthleteIds = filteredAthletes.map((athlete) => athlete.id);
+
+  const { data: equipmentProfilesRaw } = await supabase
     .from("equipment_profiles")
     .select("id, name, athlete_id, is_active")
     .eq("is_active", true)
     .order("name", { ascending: true });
+
+  const equipmentProfiles = (
+    isCoach
+      ? equipmentProfilesRaw?.filter((equipment) =>
+          scopedAthleteIds.includes(equipment.athlete_id)
+        )
+      : equipmentProfilesRaw
+  ) as EquipmentOption[] | null;
 
   let query = supabase
     .from("training_sessions")
@@ -63,307 +190,173 @@ export default async function TrainingsPage({
         users!athlete_profiles_user_id_fkey (
           name
         )
+      ),
+      training_rounds (
+        distance_meters,
+        target_size_cm,
+        total_series,
+        arrows_per_series
       )
     `)
     .order("training_date", { ascending: false });
 
   if (currentAthleteId) {
     query = query.eq("athlete_id", currentAthleteId);
+  } else if (athleteNameFilter) {
+    if (nameFilteredAthleteIds.length === 0) {
+      query = query.in("athlete_id", ["00000000-0000-0000-0000-000000000000"]);
+    } else {
+      query = query.in("athlete_id", nameFilteredAthleteIds);
+    }
+  } else if (isCoach) {
+    query = query.eq("club_id", coachClubId);
   }
+
+  if (fromDate) query = query.gte("training_date", fromDate);
+  if (toDate) query = query.lte("training_date", toDate);
 
   const { data: trainings, error } = await query;
 
-  const selectedAthlete = athletes?.find(
-    (athlete: any) => athlete.id === currentAthleteId
+  const selectedAthlete = athletes.find(
+    (athlete) => athlete.id === currentAthleteId
   );
 
   const totalTrainings = trainings?.length || 0;
-
   const totalScore =
     trainings?.reduce(
       (sum: number, training: any) => sum + Number(training.total_score || 0),
       0
     ) || 0;
-
   const averageScore =
     totalTrainings > 0 ? Math.round(totalScore / totalTrainings) : 0;
-
   const competitionSessions =
     trainings?.filter((training: any) => training.session_type === "competencia")
       .length || 0;
 
-  const inputClass =
-    "h-14 rounded-2xl border border-white/10 bg-white/[0.04] px-5 text-sm font-medium text-white outline-none backdrop-blur-xl transition-all placeholder:text-slate-500 focus:border-cyan-400 focus:bg-cyan-400/[0.05] focus:ring-4 focus:ring-cyan-400/10";
+  const trainingStats: { label: string; value: number; icon: LucideIcon }[] = [
+    { label: "Entrenamientos", value: totalTrainings, icon: Activity },
+    { label: "Score acumulado", value: totalScore, icon: Trophy },
+    { label: "Promedio", value: averageScore, icon: BarChart3 },
+    { label: "Competencias", value: competitionSessions, icon: Crosshair },
+  ];
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-slate-950 px-6 py-8 text-white">
-      <div className="absolute inset-0 tal-grid-bg opacity-30" />
+      <div className="absolute inset-0 tal-grid-bg opacity-20" />
       <div className="absolute right-[-200px] top-0 h-[500px] w-[500px] rounded-full bg-cyan-400/10 blur-3xl" />
       <div className="absolute bottom-[-200px] left-[-120px] h-[450px] w-[450px] rounded-full bg-blue-500/10 blur-3xl" />
 
-      <div className="relative z-10 mx-auto max-w-7xl space-y-8">
-        <section className="relative overflow-hidden rounded-[2.5rem] border border-cyan-400/10 bg-gradient-to-br from-slate-900 via-slate-950 to-cyan-950/30 p-10 shadow-[0_0_60px_rgba(34,211,238,0.08)]">
-          <div className="absolute right-[-100px] top-[-100px] h-72 w-72 rounded-full bg-cyan-400/10 blur-3xl" />
+      <div className="relative z-10 mx-auto max-w-7xl space-y-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <Link
+            href="/"
+            className="inline-flex w-fit items-center gap-2 rounded-2xl border border-cyan-400/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-cyan-300 backdrop-blur-xl transition hover:border-cyan-300/30 hover:bg-cyan-400/10"
+          >
+            Dashboard
+          </Link>
 
-          <p className="relative z-10 text-xs font-black uppercase tracking-[0.4em] text-cyan-300">
+          {!isAthlete && (
+            <TrainingCreateModal
+              athletes={athletes}
+              equipmentProfiles={equipmentProfiles || []}
+              selectedAthleteId={currentAthleteId}
+            />
+          )}
+        </div>
+
+        <section className="tal-hero-panel p-7 md:p-9">
+          <p className="text-xs font-black uppercase tracking-[0.35em] text-cyan-300">
             TAL Training Lab
           </p>
 
-          <div className="relative z-10 mt-4 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+          <div className="mt-3 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
             <div>
-              <h1 className="text-6xl font-black tracking-tight">
+              <h1 className="text-4xl font-black tracking-tight text-white tal-text-glow md:text-6xl">
                 Entrenamientos
-                <span className="block text-cyan-300 tal-text-glow">
-                  Performance Data
-                </span>
               </h1>
 
-              <p className="mt-4 max-w-2xl text-slate-400">
+              <p className="mt-3 max-w-2xl text-sm font-medium text-slate-400 md:text-base">
                 {selectedAthlete
-                  ? `Análisis de sesiones de ${
-                      (selectedAthlete.users as any)?.name || "atleta"
-                    }`
-                  : "Control estadístico de sesiones, objetivos, clima, score, equipamiento, distancia, diana y brace height."}
+                  ? `Análisis de sesiones de ${getRelatedName(selectedAthlete.users)}`
+                  : "Sesiones, objetivos, clima, score, equipamiento y configuración técnica en una vista limpia."}
               </p>
             </div>
 
-            <div className="rounded-3xl border border-cyan-400/20 bg-cyan-400/10 px-6 py-4 shadow-xl shadow-cyan-500/10 backdrop-blur-xl">
-              <p className="text-xs font-black uppercase text-cyan-300">
-                Sesiones
-              </p>
-              <p className="text-5xl font-black text-white">{totalTrainings}</p>
+            <div className="rounded-[1.7rem] border border-cyan-300/20 bg-cyan-400 px-6 py-4 text-slate-950 shadow-[0_0_35px_rgba(34,211,238,0.25)]">
+              <p className="text-xs font-black uppercase">Sesiones</p>
+              <p className="text-5xl font-black">{totalTrainings}</p>
             </div>
           </div>
         </section>
 
         <section className="grid grid-cols-1 gap-5 md:grid-cols-4">
-          {[
-            ["Entrenamientos", totalTrainings],
-            ["Score acumulado", totalScore],
-            ["Promedio", averageScore],
-            ["Competencias", competitionSessions],
-          ].map(([label, value]) => (
-            <div
-              key={label}
-              className="rounded-3xl border border-cyan-400/10 bg-white/[0.04] p-5 shadow-[0_0_40px_rgba(0,0,0,0.35)] backdrop-blur-2xl"
-            >
-              <p className="text-sm font-bold text-slate-400">{label}</p>
-              <p className="mt-2 text-4xl font-black text-white">{value}</p>
+          {trainingStats.map(({ label, value, icon: Icon }) => (
+            <div key={label} className="tal-metric-card">
+              <span className="tal-metric-icon">
+                <Icon size={20} />
+              </span>
+              <p className="tal-metric-label">{label}</p>
+              <p className="tal-metric-value">{value}</p>
             </div>
           ))}
         </section>
 
         {!isAthlete && (
-          <section className="rounded-[2rem] border border-cyan-400/10 bg-white/[0.04] p-5 shadow-2xl backdrop-blur-2xl">
-            <h2 className="mb-4 text-xl font-black">Filtrar por atleta</h2>
+          <section className="tal-chart-card">
+            <form method="GET" className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr_auto]">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-cyan-300" size={18} />
+                <input
+                  name="athlete_name"
+                  defaultValue={params.athlete_name || ""}
+                  placeholder="Buscar atleta por nombre"
+                  className="tal-input w-full pl-11"
+                />
+              </div>
 
-            <div className="flex flex-wrap gap-3">
+              <select name="period" defaultValue={period} className="tal-input">
+                <option value="">Todos los periodos</option>
+                <option value="today">Hoy</option>
+                <option value="week">Esta semana</option>
+                <option value="month">Este mes</option>
+                <option value="range">Rango específico</option>
+              </select>
+
+              <input
+                name="from"
+                type="date"
+                defaultValue={rangeFromParams}
+                className="tal-input"
+              />
+
+              <input
+                name="to"
+                type="date"
+                defaultValue={rangeToParams}
+                className="tal-input"
+              />
+
+              <button className="tal-button inline-flex items-center justify-center gap-2">
+                <Search size={16} />
+                Filtrar
+              </button>
+            </form>
+
+            <div className="mt-4 flex flex-wrap gap-3">
               <Link
                 href="/trainings"
-                className={`rounded-2xl px-4 py-2 text-sm font-black transition ${
-                  !selectedAthleteId
-                    ? "bg-cyan-400 text-slate-950"
-                    : "bg-white/10 text-slate-300 hover:bg-white/20"
-                }`}
+                className="rounded-2xl border border-white/10 bg-white/10 px-4 py-2 text-sm font-black text-slate-300 transition hover:bg-white/20"
               >
-                Todos
+                Limpiar filtros
               </Link>
 
-              {athletes?.map((athlete: any) => (
-                <Link
-                  key={athlete.id}
-                  href={`/trainings?athlete_id=${athlete.id}`}
-                  className={`rounded-2xl px-4 py-2 text-sm font-black transition ${
-                    selectedAthleteId === athlete.id
-                      ? "bg-cyan-400 text-slate-950"
-                      : "bg-white/10 text-slate-300 hover:bg-white/20"
-                  }`}
-                >
-                  {athlete.users?.name}
-                </Link>
-              ))}
+              {currentAthleteId && (
+                <span className="tal-chip">
+                  {getRelatedName(selectedAthlete?.users)}
+                </span>
+              )}
             </div>
           </section>
-        )}
-
-        {!isAthlete && (
-          <form
-            action={createTraining}
-            className="grid grid-cols-1 gap-5 rounded-[2.5rem] border border-cyan-400/10 bg-white/[0.03] p-8 shadow-[0_0_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl md:grid-cols-3"
-          >
-            <div className="md:col-span-3">
-              <p className="text-xs font-black uppercase tracking-[0.35em] text-cyan-300">
-                Nueva sesión
-              </p>
-
-              <h2 className="mt-2 text-3xl font-black tracking-tight">
-                Registrar entrenamiento
-              </h2>
-
-              <p className="mt-2 text-sm text-slate-400">
-                Define atleta, equipamiento, distancia, tamaño de diana y número
-                de series para iniciar el registro de flechas.
-              </p>
-            </div>
-
-            <select
-              name="athlete_id"
-              className={inputClass}
-              required
-              defaultValue={selectedAthleteId || ""}
-            >
-              <option className="bg-slate-900 text-white" value="" disabled>
-                Selecciona atleta
-              </option>
-
-              {athletes?.map((athlete: any) => (
-                <option
-                  className="bg-slate-900 text-white"
-                  key={athlete.id}
-                  value={athlete.id}
-                >
-                  {athlete.users?.name}
-                </option>
-              ))}
-            </select>
-
-            <select
-              name="equipment_profile_id"
-              className={inputClass}
-              defaultValue=""
-            >
-              <option className="bg-slate-900 text-white" value="">
-                Equipamiento utilizado
-              </option>
-
-              {equipmentProfiles?.map((equipment: any) => (
-                <option
-                  className="bg-slate-900 text-white"
-                  key={equipment.id}
-                  value={equipment.id}
-                >
-                  {equipment.name}
-                </option>
-              ))}
-            </select>
-
-            <input
-              name="brace_height_cm"
-              type="number"
-              step="0.1"
-              placeholder="Brace height cm"
-              className={inputClass}
-            />
-
-            <input
-              name="distance_meters"
-              type="number"
-              placeholder="Distancia m"
-              className={inputClass}
-              required
-            />
-
-            <input
-              name="target_size_cm"
-              type="number"
-              placeholder="Tamaño de diana cm"
-              className={inputClass}
-              required
-            />
-
-            <input
-              name="total_series"
-              type="number"
-              placeholder="Número de series"
-              className={inputClass}
-              min={1}
-              required
-            />
-
-            <input
-              name="training_date"
-              type="date"
-              className={inputClass}
-              required
-            />
-
-            <input name="location" placeholder="Lugar" className={inputClass} />
-
-            <select
-              name="session_type"
-              className={inputClass}
-              defaultValue="técnico"
-            >
-              <option className="bg-slate-900 text-white" value="técnico">
-                Técnico
-              </option>
-              <option className="bg-slate-900 text-white" value="puntuación">
-                Puntuación
-              </option>
-              <option className="bg-slate-900 text-white" value="competencia">
-                Competencia
-              </option>
-              <option className="bg-slate-900 text-white" value="tuning">
-                Tuning
-              </option>
-              <option className="bg-slate-900 text-white" value="físico">
-                Físico
-              </option>
-            </select>
-
-            <select name="weather" className={inputClass} defaultValue="soleado">
-              <option className="bg-slate-900 text-white" value="soleado">
-                Soleado
-              </option>
-              <option className="bg-slate-900 text-white" value="nublado">
-                Nublado
-              </option>
-              <option className="bg-slate-900 text-white" value="lluvia">
-                Lluvia
-              </option>
-              <option className="bg-slate-900 text-white" value="viento">
-                Viento
-              </option>
-              <option className="bg-slate-900 text-white" value="interior">
-                Interior
-              </option>
-              <option className="bg-slate-900 text-white" value="otro">
-                Otro
-              </option>
-            </select>
-
-            <input
-              name="wind_speed_kmh"
-              type="number"
-              placeholder="Viento km/h"
-              className={inputClass}
-            />
-
-            <input
-              name="temperature_c"
-              type="number"
-              placeholder="Temperatura °C"
-              className={inputClass}
-            />
-
-            <input
-              name="objective"
-              placeholder="Objetivo del entrenamiento"
-              className={`${inputClass} md:col-span-2`}
-            />
-
-            <textarea
-              name="coach_notes"
-              placeholder="Notas del entrenador"
-              className={`${inputClass} h-28 py-4 md:col-span-3`}
-              rows={3}
-            />
-
-            <button className="group relative overflow-hidden rounded-2xl bg-cyan-400 px-5 py-5 font-black text-slate-950 shadow-[0_0_40px_rgba(34,211,238,0.25)] transition-all hover:-translate-y-1 hover:bg-cyan-300 md:col-span-3">
-              <span className="relative z-10">Crear entrenamiento</span>
-              <div className="absolute inset-0 bg-gradient-to-r from-cyan-300 to-cyan-100 opacity-0 transition-opacity group-hover:opacity-100" />
-            </button>
-          </form>
         )}
 
         {error && (
@@ -372,81 +365,96 @@ export default async function TrainingsPage({
           </div>
         )}
 
-        <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {trainings?.map((training: any) => (
-            <Link
-              key={training.id}
-              href={`/trainings/${training.id}`}
-              className="group relative overflow-hidden rounded-[2rem] border border-cyan-400/10 bg-white/[0.04] p-6 shadow-[0_0_40px_rgba(0,0,0,0.35)] backdrop-blur-2xl transition-all hover:-translate-y-1 hover:border-cyan-400/30 hover:shadow-[0_0_60px_rgba(34,211,238,0.12)]"
-            >
-              <div className="absolute right-[-40px] top-[-40px] h-40 w-40 rounded-full bg-cyan-400/5 blur-3xl transition-all group-hover:bg-cyan-400/10" />
+        <section className="space-y-4">
+          {trainings?.map((training: any) => {
+            const round = training.training_rounds?.[0] || {};
+            const athleteName = getRelatedName(training.athlete_profiles?.users);
 
-              <div className="relative z-10 mb-5 flex items-start justify-between">
-                <div>
-                  <h2 className="text-xl font-black text-white">
-                    {training.athlete_profiles?.users?.name}
-                  </h2>
+            return (
+              <Link
+                key={training.id}
+                href={`/trainings/${training.id}`}
+                className="group block overflow-hidden rounded-[2rem] border border-cyan-400/10 bg-white/[0.045] p-5 shadow-[0_0_42px_rgba(0,0,0,0.30)] backdrop-blur-2xl transition hover:-translate-y-0.5 hover:border-cyan-300/30 hover:bg-cyan-400/[0.06] hover:shadow-[0_0_60px_rgba(34,211,238,0.12)]"
+              >
+                <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr_0.55fr_1.6fr_auto] xl:items-center">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-300">
+                      {training.training_date}
+                    </p>
+                    <h2 className="mt-2 text-2xl font-black text-white">
+                      {athleteName}
+                    </h2>
+                    <p className="mt-2 line-clamp-2 text-sm text-slate-400">
+                      {training.objective || "Sin objetivo registrado"}
+                    </p>
+                  </div>
 
-                  <p className="text-sm font-bold text-slate-400">
-                    {training.training_date}
-                  </p>
+                  <div className="rounded-[1.5rem] border border-cyan-400/10 bg-slate-950/70 p-4">
+                    <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
+                      Score
+                    </p>
+                    <p className="mt-1 text-4xl font-black text-cyan-300">
+                      {training.total_score || 0}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {training.total_arrows || 0} flechas
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    <Indicator icon={Gauge} title="Brace Height" value={`${formatIndicator(training.brace_height_cm, "0")} cm`} />
+                    <Indicator icon={Ruler} title="Distancia" value={`${formatIndicator(round.distance_meters)} m`} />
+                    <Indicator icon={Target} title="Tamaño diana" value={`${formatIndicator(round.target_size_cm)} cm`} />
+                    <Indicator icon={Crosshair} title="Número de series" value={formatIndicator(round.total_series)} />
+                    <Indicator icon={MapPin} title="Lugar" value={formatIndicator(training.location)} />
+                    <Indicator icon={Activity} title="Tipo entrenamiento" value={formatIndicator(training.session_type, "Entrenamiento")} />
+                    <Indicator icon={CloudSun} title="Clima" value={formatIndicator(training.weather)} />
+                    <Indicator icon={Wind} title="Viento" value={`${formatIndicator(training.wind_speed_kmh, "0")} km/h`} />
+                    <Indicator icon={Thermometer} title="Temperatura" value={`${formatIndicator(training.temperature_c, "0")} °C`} />
+                    <Indicator icon={LocateFixed} title="Objetivo" value={formatIndicator(training.objective)} wide />
+                  </div>
+
+                  <div className="flex items-center justify-end">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-400 text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.22)] transition group-hover:translate-x-1 group-hover:bg-cyan-300">
+                      <Waves size={20} />
+                    </div>
+                  </div>
                 </div>
-
-                <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-black uppercase text-cyan-300">
-                  {training.status || "draft"}
-                </span>
-              </div>
-
-              <div className="relative z-10 mb-5 rounded-3xl bg-slate-950/80 p-5 text-white">
-                <p className="text-sm font-bold text-slate-400">Score total</p>
-                <p className="text-5xl font-black text-cyan-300">
-                  {training.total_score || 0}
-                </p>
-              </div>
-
-              <div className="relative z-10 grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-2xl border border-white/5 bg-slate-950/70 p-4">
-                  <p className="text-slate-500">Tipo</p>
-                  <p className="font-black text-white">
-                    {training.session_type || "Entrenamiento"}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-white/5 bg-slate-950/70 p-4">
-                  <p className="text-slate-500">Brace</p>
-                  <p className="font-black text-white">
-                    {training.brace_height_cm || 0} cm
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-white/5 bg-slate-950/70 p-4">
-                  <p className="text-slate-500">Lugar</p>
-                  <p className="font-black text-white">
-                    {training.location || "-"}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-white/5 bg-slate-950/70 p-4">
-                  <p className="text-slate-500">Viento</p>
-                  <p className="font-black text-white">
-                    {training.wind_speed_kmh || 0} km/h
-                  </p>
-                </div>
-              </div>
-
-              <p className="relative z-10 mt-5 text-sm font-black text-cyan-300 transition group-hover:translate-x-1">
-                Ver detalle →
-              </p>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
 
           {trainings?.length === 0 && (
-            <div className="rounded-[2rem] border border-cyan-400/10 bg-white/[0.04] p-6 text-slate-400">
-              No hay entrenamientos registrados.
+            <div className="tal-chart-card text-center text-slate-400">
+              No hay entrenamientos con los filtros seleccionados.
             </div>
           )}
         </section>
       </div>
     </main>
+  );
+}
+
+function Indicator({
+  icon: Icon,
+  title,
+  value,
+  wide = false,
+}: {
+  icon: LucideIcon;
+  title: string;
+  value: string;
+  wide?: boolean;
+}) {
+  return (
+    <div
+      title={title}
+      className={`flex min-w-0 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/65 px-3 py-2 ${
+        wide ? "sm:col-span-2" : ""
+      }`}
+    >
+      <Icon className="shrink-0 text-cyan-300" size={16} />
+      <span className="truncate text-xs font-black text-white">{value}</span>
+    </div>
   );
 }

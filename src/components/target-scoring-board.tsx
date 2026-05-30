@@ -1,6 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import {
+  Crosshair,
+  Eraser,
+  LocateFixed,
+  MousePointer2,
+  RotateCcw,
+  Target,
+} from "lucide-react";
 
 type ArrowPosition = {
   x: number;
@@ -109,7 +117,10 @@ export function TargetScoringBoard() {
               Serie actual
             </p>
 
-            <h3 className="mt-1 text-2xl font-black text-white">
+            <h3 className="mt-1 flex items-center gap-3 text-2xl font-black text-white">
+              <span className="tal-metric-icon mb-0 h-9 w-9">
+                <Crosshair size={18} />
+              </span>
               Registro de flechas
             </h3>
 
@@ -120,19 +131,21 @@ export function TargetScoringBoard() {
 
           <div className="flex flex-wrap gap-3">
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-              <p className="text-xs font-bold uppercase text-slate-400">
+              <p className="flex items-center gap-2 text-xs font-bold uppercase text-slate-400">
+                <LocateFixed size={14} />
                 Impactos
               </p>
-              <p className="text-2xl font-black text-white">
+              <p className="mt-1 text-2xl font-black text-white">
                 {registeredCount}/6
               </p>
             </div>
 
             <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3">
-              <p className="text-xs font-bold uppercase text-cyan-300">
+              <p className="flex items-center gap-2 text-xs font-bold uppercase text-cyan-300">
+                <MousePointer2 size={14} />
                 Activa
               </p>
-              <p className="text-2xl font-black text-cyan-300">
+              <p className="mt-1 text-2xl font-black text-cyan-300">
                 F{activeArrow}
               </p>
             </div>
@@ -140,8 +153,9 @@ export function TargetScoringBoard() {
             <button
               type="button"
               onClick={clearAll}
-              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-slate-300 transition hover:bg-white/10 hover:text-white"
+              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-slate-300 transition hover:bg-white/10 hover:text-white"
             >
+              <RotateCcw size={16} />
               Reiniciar
             </button>
           </div>
@@ -166,8 +180,10 @@ export function TargetScoringBoard() {
                   <button
                     type="button"
                     onClick={() => clearArrow(n)}
-                    className="rounded-lg border border-red-400/20 bg-red-500/10 px-2 py-1 text-[10px] font-black text-red-300 hover:bg-red-500/20"
+                    title={`Limpiar flecha ${n}`}
+                    className="inline-flex items-center gap-1 rounded-lg border border-red-400/20 bg-red-500/10 px-2 py-1 text-[10px] font-black text-red-300 hover:bg-red-500/20"
                   >
+                    <Eraser size={11} />
                     Limpiar
                   </button>
                 )}
@@ -200,7 +216,10 @@ export function TargetScoringBoard() {
                 Target Input
               </p>
 
-              <h3 className="text-2xl font-black text-white">
+              <h3 className="flex items-center gap-3 text-2xl font-black text-white">
+                <span className="tal-metric-icon mb-0 h-9 w-9">
+                  <Target size={18} />
+                </span>
                 Diana interactiva
               </h3>
             </div>

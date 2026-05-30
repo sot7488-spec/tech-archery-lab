@@ -1,8 +1,9 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Search, X, UserRound, ArrowRight } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase/server";
 import AthleteCreateModal from "./AthleteCreateModal";
 
 type PageProps = {
@@ -25,18 +26,40 @@ export default async function AthletesPage({ searchParams }: PageProps) {
 
   const hasFilters = Boolean(name || category || bowType);
 
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase
+    .from("users")
+    .select("role, club_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile) redirect("/login");
+  if (profile.role === "coach" && !profile.club_id) redirect("/");
+
   // =========================
   // Carga de clubs para modal
   // =========================
-  const { data: clubs } = await supabase
+  let clubsQuery = supabase
     .from("clubs")
     .select("id, name")
     .order("name", { ascending: true });
 
+  if (profile.role === "coach" && profile.club_id) {
+    clubsQuery = clubsQuery.eq("id", profile.club_id);
+  }
+
+  const { data: clubs } = await clubsQuery;
+
   // =========================
   // Consulta principal de atletas
   // =========================
-  const { data: athletesRaw, error } = await supabase
+  let athletesQuery = supabase
     .from("athlete_profiles")
     .select(`
       *,
@@ -50,6 +73,12 @@ export default async function AthletesPage({ searchParams }: PageProps) {
       )
     `)
     .order("created_at", { ascending: false });
+
+  if (profile.role === "coach" && profile.club_id) {
+    athletesQuery = athletesQuery.eq("club_id", profile.club_id);
+  }
+
+  const { data: athletesRaw, error } = await athletesQuery;
 
   // =========================
   // Filtrado en servidor
@@ -98,7 +127,7 @@ export default async function AthletesPage({ searchParams }: PageProps) {
     "w-full rounded-2xl border border-cyan-400/10 bg-slate-950/80 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 transition focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-400/10";
 
   const statCardClass =
-    "relative overflow-hidden rounded-[1.7rem] border border-cyan-400/10 bg-white/[0.04] p-5 shadow-[0_0_40px_rgba(0,0,0,0.25)] backdrop-blur-xl";
+    "tal-metric-card";
 
   return (
     <main className="min-h-screen overflow-hidden bg-slate-950 px-5 py-7 text-white">

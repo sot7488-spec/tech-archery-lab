@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const response = NextResponse.next();
 
   const supabase = createServerClient(
@@ -56,6 +56,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const allowedAthleteRoutes = [
+    "/agenda",
     `/athletes/${athlete.id}`,
     `/athletes/profile/${athlete.id}`,
     `/analytics/${athlete.id}`,
@@ -79,6 +80,8 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     "/",
+    "/admin/:path*",
+    "/agenda/:path*",
     "/analytics/:path*",
     "/athletes/:path*",
     "/clubs/:path*",

@@ -19,7 +19,9 @@ type Athlete = {
   id: string;
   users?: {
     name?: string | null;
-  }[] | null;
+  }[] | {
+    name?: string | null;
+  } | null;
 };
 
 type Props = {
@@ -37,6 +39,14 @@ const sectionTitleClass =
 
 export default function EquipmentCreateModal({ athletes }: Props) {
   const [open, setOpen] = useState(false);
+
+  function getAthleteName(athlete: Athlete) {
+    if (Array.isArray(athlete.users)) {
+      return athlete.users[0]?.name || "Atleta sin nombre";
+    }
+
+    return athlete.users?.name || "Atleta sin nombre";
+  }
 
   return (
     <>
@@ -117,7 +127,7 @@ export default function EquipmentCreateModal({ athletes }: Props) {
 
                     {athletes?.map((athlete) => (
                       <option key={athlete.id} value={athlete.id}>
-                        {athlete.users?.[0]?.name || "Atleta sin nombre"}
+                        {getAthleteName(athlete)}
                       </option>
                     ))}
                   </select>

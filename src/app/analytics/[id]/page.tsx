@@ -42,7 +42,7 @@ export default async function AthleteAnalyticsPage({
 
   const { data: currentUser } = await supabase
     .from("users")
-    .select("role")
+    .select("role, club_id")
     .eq("id", user.id)
     .single();
 
@@ -51,6 +51,7 @@ export default async function AthleteAnalyticsPage({
     .select(`
       id,
       user_id,
+      club_id,
       category,
       bow_type,
       users!athlete_profiles_user_id_fkey (
@@ -104,6 +105,25 @@ export default async function AthleteAnalyticsPage({
         </main>
       );
     }
+  }
+
+  if (currentUser?.role === "coach" && athlete.club_id !== currentUser.club_id) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
+        <div className="rounded-[2rem] border border-red-400/20 bg-red-500/10 p-8 text-center">
+          <h1 className="text-2xl font-black text-red-300">
+            Solo puedes ver analíticas de atletas de tu club.
+          </h1>
+
+          <Link
+            href="/analytics"
+            className="mt-5 inline-block rounded-2xl bg-cyan-400 px-5 py-3 font-black text-slate-950"
+          >
+            Volver a analíticas
+          </Link>
+        </div>
+      </main>
+    );
   }
 
   let query = supabase

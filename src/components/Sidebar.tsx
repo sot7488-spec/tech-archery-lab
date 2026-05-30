@@ -14,6 +14,8 @@ import {
   BarChart3,
   User,
   LogOut,
+  UserPlus,
+  CalendarDays,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -31,8 +33,26 @@ const adminNavItems: NavItem[] = [
   { href: "/clubs", label: "Clubs", icon: Building2 },
   { href: "/equipment", label: "Equipamiento", icon: Shield },
   { href: "/trainings", label: "Entrenamientos", icon: Activity },
+  { href: "/agenda", label: "Agenda", icon: CalendarDays },
   { href: "/conade", label: "CONADE", icon: Trophy },
+  { href: "/admin/invitations", label: "Invitaciones", icon: UserPlus },
 ];
+
+function coachNavItems(clubId: string | null): NavItem[] {
+  return [
+    { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/analytics", label: "Analytics", icon: BarChart3 },
+    { href: "/athletes", label: "Atletas", icon: Users },
+    {
+      href: clubId ? `/clubs/${clubId}` : "/",
+      label: "Mi club",
+      icon: Building2,
+    },
+    { href: "/equipment", label: "Equipamiento", icon: Shield },
+    { href: "/trainings", label: "Entrenamientos", icon: Activity },
+    { href: "/agenda", label: "Agenda", icon: CalendarDays },
+  ];
+}
 
 export default function Sidebar() {
   const [navItems, setNavItems] = useState<NavItem[]>(adminNavItems);
@@ -56,9 +76,15 @@ export default function Sidebar() {
 
     const { data: profile } = await supabase
       .from("users")
-      .select("role")
+      .select("role, club_id")
       .eq("id", user.id)
       .single();
+
+    if (profile?.role === "coach") {
+      setNavItems(coachNavItems(profile.club_id || null));
+      setLoading(false);
+      return;
+    }
 
     if (profile?.role !== "athlete") {
       setNavItems(adminNavItems);
@@ -99,6 +125,11 @@ export default function Sidebar() {
         href: `/trainings/athletes/${athlete.id}`,
         label: "Mis entrenamientos",
         icon: Activity,
+      },
+      {
+        href: "/agenda",
+        label: "Mi agenda",
+        icon: CalendarDays,
       },
       {
         href: `/equipment/${athlete.id}`,

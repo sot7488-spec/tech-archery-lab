@@ -1,10 +1,79 @@
 export const dynamic = "force-dynamic";
 
-import { TargetScoringBoard } from "@/components/target-scoring-board";
-import { createSeriesWithArrows, finishTraining } from "./actions";
 import { TargetHeatmap } from "@/components/target-heatmap";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import TrainingSeriesCapture from "./TrainingSeriesCapture";
+import {
+  Activity,
+  ArrowLeft,
+  BarChart3,
+  BowArrow,
+  CalendarDays,
+  CheckCircle2,
+  CloudSun,
+  Crosshair,
+  FileText,
+  Gauge,
+  MapPin,
+  NotebookText,
+  Ruler,
+  Target,
+  Thermometer,
+  Trophy,
+  Wind,
+  type LucideIcon,
+} from "lucide-react";
+
+function getRelationName(relation: any) {
+  if (Array.isArray(relation)) return relation[0]?.name || "Atleta sin nombre";
+  return relation?.name || "Atleta sin nombre";
+}
+
+function valueOrDash(value: unknown) {
+  if (value === null || value === undefined || value === "") return "-";
+  return String(value);
+}
+
+function arrowDisplay(arrow: any) {
+  if (!arrow) return "";
+  if (arrow.is_x) return "X";
+  if (Number(arrow.score || 0) === 0) return "M";
+  return String(arrow.score);
+}
+
+function calculateGroupSizeCm(arrows: any[], targetSizeCm: number) {
+  const positionedArrows = arrows.filter(
+    (arrow) =>
+      arrow.position_x !== null &&
+      arrow.position_x !== undefined &&
+      arrow.position_y !== null &&
+      arrow.position_y !== undefined
+  );
+
+  if (positionedArrows.length < 2 || !targetSizeCm) return null;
+
+  let maxDistancePercent = 0;
+
+  for (let i = 0; i < positionedArrows.length; i += 1) {
+    for (let j = i + 1; j < positionedArrows.length; j += 1) {
+      const dx =
+        Number(positionedArrows[i].position_x) -
+        Number(positionedArrows[j].position_x);
+      const dy =
+        Number(positionedArrows[i].position_y) -
+        Number(positionedArrows[j].position_y);
+
+      maxDistancePercent = Math.max(
+        maxDistancePercent,
+        Math.sqrt(dx * dx + dy * dy)
+      );
+    }
+  }
+
+  return Number(((maxDistancePercent / 100) * targetSizeCm).toFixed(1));
+}
 
 export default async function TrainingDetailPage({
   params,
@@ -12,6 +81,19 @@ export default async function TrainingDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) redirect("/login");
+
+  const { data: currentUser } = await supabase
+    .from("users")
+    .select("role, club_id")
+    .eq("id", user.id)
+    .single();
 
   const { data: training, error } = await supabase
     .from("training_sessions")
@@ -23,6 +105,7 @@ export default async function TrainingDetailPage({
       ),
       athlete_profiles (
         id,
+        user_id,
         category,
         bow_type,
         users!athlete_profiles_user_id_fkey (
@@ -47,20 +130,34 @@ export default async function TrainingDetailPage({
     return (
       <main className="min-h-screen bg-slate-950 p-8 text-white">
         <Link href="/trainings" className="font-bold text-cyan-300">
-          ← Volver a entrenamientos
+          Volver a entrenamientos
         </Link>
 
-        <div className="mt-6 rounded-3xl bg-white p-6 text-slate-950 shadow-xl">
-          <h1 className="text-2xl font-black text-red-600">
+        <div className="tal-chart-card mt-6">
+          <h1 className="text-2xl font-black text-red-300">
             Entrenamiento no encontrado
           </h1>
 
-          <pre className="mt-4 text-sm text-red-500">
+          <pre className="mt-4 overflow-auto text-sm text-red-300">
             {JSON.stringify(error, null, 2)}
           </pre>
         </div>
       </main>
     );
+  }
+
+  if (
+    currentUser?.role === "coach" &&
+    training.club_id !== currentUser.club_id
+  ) {
+    redirect("/trainings");
+  }
+
+  if (
+    currentUser?.role === "athlete" &&
+    training.athlete_profiles?.user_id !== user.id
+  ) {
+    redirect("/trainings");
   }
 
   const currentRound = training.training_rounds?.[0];
@@ -81,316 +178,185 @@ export default async function TrainingDetailPage({
   const plannedArrows = plannedSeries * arrowsPerSeries;
   const totalArrows = allTrainingArrows.length;
   const totalScore = training.total_score || 0;
-
   const averageArrow =
     totalArrows > 0 ? (totalScore / totalArrows).toFixed(1) : "0.0";
-
   const xCount = allTrainingArrows.filter((arrow: any) => arrow.is_x).length;
-
   const missCount = allTrainingArrows.filter(
     (arrow: any) => Number(arrow.score || 0) === 0
   ).length;
-
   const isCompleted = training.status === "completed";
-
-  const configCardClass =
-    "rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-xl backdrop-blur-xl";
+  const athleteName = getRelationName(training.athlete_profiles?.users);
 
   return (
-    <main className="min-h-screen bg-slate-950 px-6 py-8 text-white">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex items-center justify-between">
+    <main className="relative min-h-screen overflow-hidden bg-slate-950 px-6 py-8 text-white">
+      <div className="absolute inset-0 tal-grid-bg opacity-20" />
+      <div className="absolute right-[-200px] top-0 h-[500px] w-[500px] rounded-full bg-cyan-400/10 blur-3xl" />
+      <div className="absolute bottom-[-200px] left-[-120px] h-[450px] w-[450px] rounded-full bg-blue-500/10 blur-3xl" />
+
+      <div className="relative z-10 mx-auto max-w-7xl space-y-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <Link
             href="/trainings"
-            className="text-sm font-bold text-cyan-300 hover:text-cyan-200"
+            className="inline-flex w-fit items-center gap-2 rounded-2xl border border-cyan-400/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-cyan-300 backdrop-blur-xl transition hover:border-cyan-300/30 hover:bg-cyan-400/10"
           >
-            ← Volver a entrenamientos
+            <ArrowLeft size={16} />
+            Entrenamientos
           </Link>
 
           <span
-            className={`rounded-2xl px-4 py-2 text-sm font-black uppercase ${
+            className={`inline-flex w-fit items-center gap-2 rounded-2xl px-4 py-3 text-sm font-black uppercase ${
               isCompleted
                 ? "bg-emerald-400 text-slate-950"
                 : "bg-yellow-300 text-slate-950"
             }`}
           >
+            <CheckCircle2 size={17} />
             {isCompleted ? "Finalizado" : "En progreso"}
           </span>
         </div>
 
-        <section className="mb-8 rounded-[2rem] border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900 to-cyan-950 p-8 shadow-2xl">
-          <p className="text-sm font-black uppercase tracking-[0.3em] text-cyan-300">
+        <section className="tal-hero-panel p-7 md:p-9">
+          <p className="text-xs font-black uppercase tracking-[0.35em] text-cyan-300">
             TAL Training Session
           </p>
 
-          <div className="mt-3 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+          <div className="mt-3 grid grid-cols-1 gap-6 xl:grid-cols-[1fr_auto] xl:items-end">
             <div>
-              <h1 className="text-4xl font-black tracking-tight md:text-6xl">
-                {training.athlete_profiles?.users?.name}
+              <h1 className="text-4xl font-black tracking-tight text-white tal-text-glow md:text-6xl">
+                {athleteName}
               </h1>
 
-              <p className="mt-3 text-slate-300">
-                {training.training_date} ·{" "}
-                {training.location || "Sin ubicación"}
+              <p className="mt-3 flex flex-wrap items-center gap-3 text-sm font-medium text-slate-400 md:text-base">
+                <span className="inline-flex items-center gap-2">
+                  <CalendarDays size={17} className="text-cyan-300" />
+                  {training.training_date}
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <MapPin size={17} className="text-cyan-300" />
+                  {training.location || "Sin ubicacion"}
+                </span>
               </p>
 
               <div className="mt-4 flex flex-wrap gap-3">
-                <span className="rounded-full bg-white/10 px-4 py-2 text-sm font-bold text-slate-200">
+                <span className="tal-chip">
                   {training.session_type || "Entrenamiento"}
                 </span>
-
-                <span className="rounded-full bg-white/10 px-4 py-2 text-sm font-bold text-slate-200">
-                  {training.athlete_profiles?.category || "Sin categoría"}
+                <span className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm font-bold text-slate-300">
+                  {training.athlete_profiles?.category || "Sin categoria"}
                 </span>
-
-                <span className="rounded-full bg-white/10 px-4 py-2 text-sm font-bold text-slate-200">
+                <span className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm font-bold text-slate-300">
                   {training.athlete_profiles?.bow_type || "Arco"}
                 </span>
               </div>
             </div>
 
-            <div className="rounded-3xl bg-cyan-400 px-6 py-4 text-slate-950 shadow-xl shadow-cyan-500/20">
+            <div className="rounded-[1.7rem] border border-cyan-300/20 bg-cyan-400 px-6 py-4 text-slate-950 shadow-[0_0_35px_rgba(34,211,238,0.25)]">
               <p className="text-xs font-black uppercase">Score total</p>
               <p className="text-5xl font-black">{totalScore}</p>
             </div>
           </div>
         </section>
 
-        <section className="mb-8 grid grid-cols-1 gap-5 md:grid-cols-4">
-          <div className="rounded-3xl bg-white p-5 text-slate-950 shadow-xl">
-            <p className="text-sm font-bold text-slate-500">Series</p>
-            <p className="mt-2 text-4xl font-black">
-              {totalSeries}
-              {plannedSeries ? (
-                <span className="text-lg text-slate-400">/{plannedSeries}</span>
-              ) : null}
-            </p>
-          </div>
-
-          <div className="rounded-3xl bg-white p-5 text-slate-950 shadow-xl">
-            <p className="text-sm font-bold text-slate-500">Flechas</p>
-            <p className="mt-2 text-4xl font-black">
-              {totalArrows}
-              {plannedArrows ? (
-                <span className="text-lg text-slate-400">/{plannedArrows}</span>
-              ) : null}
-            </p>
-          </div>
-
-          <div className="rounded-3xl bg-white p-5 text-slate-950 shadow-xl">
-            <p className="text-sm font-bold text-slate-500">Promedio</p>
-            <p className="mt-2 text-4xl font-black">{averageArrow}</p>
-          </div>
-
-          <div className="rounded-3xl bg-white p-5 text-slate-950 shadow-xl">
-            <p className="text-sm font-bold text-slate-500">X / Miss</p>
-            <p className="mt-2 text-4xl font-black">
-              {xCount}/{missCount}
-            </p>
-          </div>
+        <section className="grid grid-cols-1 gap-5 md:grid-cols-4">
+          <MetricCard
+            icon={BarChart3}
+            title="Series"
+            value={`${totalSeries}${plannedSeries ? `/${plannedSeries}` : ""}`}
+          />
+          <MetricCard
+            icon={Crosshair}
+            title="Flechas"
+            value={`${totalArrows}${plannedArrows ? `/${plannedArrows}` : ""}`}
+          />
+          <MetricCard icon={Gauge} title="Promedio" value={averageArrow} />
+          <MetricCard icon={Trophy} title="X / Miss" value={`${xCount}/${missCount}`} />
         </section>
 
-        <section className="mb-8 rounded-[2.5rem] border border-cyan-400/10 bg-white/[0.04] p-6 shadow-[0_0_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+        <section className="tal-chart-card">
           <div className="mb-5">
             <p className="text-xs font-black uppercase tracking-[0.35em] text-cyan-300">
-              Configuración del entrenamiento
+              Configuracion
             </p>
-
-            <h2 className="mt-2 text-3xl font-black">
-              Parámetros de sesión
+            <h2 className="mt-2 text-3xl font-black tal-text-glow">
+              Parametros de sesion
             </h2>
-
-            <p className="mt-2 text-sm text-slate-400">
-              Esta configuración se definió al crear el entrenamiento y se usa
-              para todas las series registradas.
-            </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-3 xl:grid-cols-6">
-            <div className={configCardClass}>
-              <p className="text-sm font-bold text-slate-400">Distancia</p>
-              <h3 className="mt-2 text-3xl font-black text-cyan-300">
-                {currentRound?.distance_meters || "-"} m
-              </h3>
-            </div>
-
-            <div className={configCardClass}>
-              <p className="text-sm font-bold text-slate-400">Diana</p>
-              <h3 className="mt-2 text-3xl font-black text-cyan-300">
-                {currentRound?.target_size_cm || "-"} cm
-              </h3>
-            </div>
-
-            <div className={configCardClass}>
-              <p className="text-sm font-bold text-slate-400">
-                Series planeadas
-              </p>
-              <h3 className="mt-2 text-3xl font-black text-cyan-300">
-                {plannedSeries || "-"}
-              </h3>
-            </div>
-
-            <div className={configCardClass}>
-              <p className="text-sm font-bold text-slate-400">
-                Flechas / serie
-              </p>
-              <h3 className="mt-2 text-3xl font-black text-cyan-300">
-                {arrowsPerSeries}
-              </h3>
-            </div>
-
-            <div className={configCardClass}>
-              <p className="text-sm font-bold text-slate-400">Brace height</p>
-              <h3 className="mt-2 text-3xl font-black text-cyan-300">
-                {training.brace_height_cm || "-"} cm
-              </h3>
-            </div>
-
-            <div className={configCardClass}>
-              <p className="text-sm font-bold text-slate-400">Equipo</p>
-              <h3 className="mt-2 text-lg font-black text-white">
-                {training.equipment_profiles?.name || "Sin equipo"}
-              </h3>
-            </div>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
+            <SessionParam icon={Ruler} value={`${valueOrDash(currentRound?.distance_meters)} m`} title="Distancia" />
+            <SessionParam icon={Target} value={`${valueOrDash(currentRound?.target_size_cm)} cm`} title="Tamano diana" />
+            <SessionParam icon={BarChart3} value={valueOrDash(plannedSeries)} title="Series planeadas" />
+            <SessionParam icon={Crosshair} value={valueOrDash(arrowsPerSeries)} title="Flechas por serie" />
+            <SessionParam icon={Gauge} value={`${valueOrDash(training.brace_height_cm)} cm`} title="Brace height" />
+            <SessionParam icon={BowArrow} value={training.equipment_profiles?.name || "Sin equipo"} title="Equipo" wide />
+            <SessionParam icon={CloudSun} value={valueOrDash(training.weather)} title="Clima" />
+            <SessionParam icon={Wind} value={`${valueOrDash(training.wind_speed_kmh || 0)} km/h`} title="Viento" />
+            <SessionParam icon={Thermometer} value={`${valueOrDash(training.temperature_c || 0)} C`} title="Temperatura" />
+            <SessionParam icon={Activity} value={training.status || "draft"} title="Estado" />
           </div>
         </section>
 
-        <section className="mb-8 grid grid-cols-1 gap-5 md:grid-cols-4">
-          <div className="rounded-3xl border border-white/10 bg-white/10 p-5 shadow-xl backdrop-blur">
-            <p className="text-sm font-bold text-slate-400">Clima</p>
-            <h2 className="mt-2 text-2xl font-black">
-              {training.weather || "-"}
-            </h2>
-          </div>
-
-          <div className="rounded-3xl border border-white/10 bg-white/10 p-5 shadow-xl backdrop-blur">
-            <p className="text-sm font-bold text-slate-400">Viento</p>
-            <h2 className="mt-2 text-2xl font-black">
-              {training.wind_speed_kmh || 0} km/h
-            </h2>
-          </div>
-
-          <div className="rounded-3xl border border-white/10 bg-white/10 p-5 shadow-xl backdrop-blur">
-            <p className="text-sm font-bold text-slate-400">Temperatura</p>
-            <h2 className="mt-2 text-2xl font-black">
-              {training.temperature_c || 0} °C
-            </h2>
-          </div>
-
-          <div className="rounded-3xl border border-white/10 bg-white/10 p-5 shadow-xl backdrop-blur">
-            <p className="text-sm font-bold text-slate-400">Estado</p>
-            <h2 className="mt-2 text-2xl font-black">
-              {training.status || "draft"}
-            </h2>
-          </div>
+        <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <InfoPanel
+            icon={Target}
+            title="Objetivo"
+            value={training.objective || "Sin objetivo registrado."}
+          />
+          <InfoPanel
+            icon={NotebookText}
+            title="Notas del entrenador"
+            value={training.coach_notes || "Sin notas registradas."}
+          />
         </section>
 
-        <section className="mb-8 grid grid-cols-1 gap-5 lg:grid-cols-2">
-          <div className="rounded-3xl bg-white p-6 text-slate-950 shadow-xl">
-            <h3 className="text-xl font-black">Objetivo</h3>
-            <p className="mt-3 text-slate-600">
-              {training.objective || "Sin objetivo registrado."}
-            </p>
-          </div>
-
-          <div className="rounded-3xl bg-white p-6 text-slate-950 shadow-xl">
-            <h3 className="text-xl font-black">Notas del entrenador</h3>
-            <p className="mt-3 text-slate-600">
-              {training.coach_notes || "Sin notas registradas."}
-            </p>
-          </div>
-        </section>
-
-        <section className="mb-8 overflow-hidden rounded-[2.5rem] border border-cyan-400/10 bg-white/[0.04] p-5 text-white shadow-[0_0_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl md:p-6">
+        <section className="tal-chart-card">
           <div className="mb-5 border-b border-white/10 pb-5">
             <p className="text-xs font-black uppercase tracking-[0.35em] text-cyan-300">
               TAL Scoring Input
             </p>
-
-            <h3 className="mt-2 text-3xl font-black">Registrar serie</h3>
-
+            <h3 className="mt-2 text-3xl font-black tal-text-glow">
+              Registrar serie
+            </h3>
             <p className="mt-1 text-sm font-medium text-slate-500">
-              Captura score e impacto por flecha. La distancia, diana y número
-              de series ya están definidos en la configuración del entrenamiento.
+              Captura score e impacto por flecha con la configuracion definida
+              al crear la sesion.
             </p>
           </div>
 
           {isCompleted ? (
             <p className="rounded-2xl border border-white/10 bg-slate-950/80 p-4 font-medium text-slate-400">
-              Este entrenamiento ya fue finalizado. No se pueden agregar más
+              Este entrenamiento ya fue finalizado. No se pueden agregar mas
               series.
             </p>
           ) : (
-            <>
-              <form action={createSeriesWithArrows} className="space-y-5">
-                <input
-                  type="hidden"
-                  name="training_session_id"
-                  value={training.id}
-                />
-
-                <input
-                  type="hidden"
-                  name="distance_meters"
-                  value={currentRound?.distance_meters || 0}
-                />
-
-                <input
-                  type="hidden"
-                  name="target_size_cm"
-                  value={currentRound?.target_size_cm || 0}
-                />
-
-                <div className="mx-auto w-full max-w-[700px]">
-                  <TargetScoringBoard />
-                </div>
-
-                <div className="mx-auto flex w-full max-w-[600px] flex-col gap-3 pt-2">
-                  <button className="w-full rounded-2xl bg-cyan-400 p-4 text-lg font-black text-slate-950 shadow-[0_0_35px_rgba(34,211,238,0.28)] transition hover:-translate-y-0.5 hover:bg-cyan-300">
-                    Guardar serie
-                  </button>
-                </div>
-              </form>
-
-              <form
-                action={finishTraining}
-                className="mx-auto mt-3 w-full max-w-[600px]"
-              >
-                <input
-                  type="hidden"
-                  name="training_session_id"
-                  value={training.id}
-                />
-
-                <button className="w-full rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm font-black text-red-300 transition hover:bg-red-500 hover:text-white">
-                  Finalizar entrenamiento
-                </button>
-              </form>
-            </>
+            <TrainingSeriesCapture
+              trainingId={training.id}
+              distanceMeters={currentRound?.distance_meters || 0}
+              targetSizeCm={currentRound?.target_size_cm || 0}
+              existingCoachNotes={training.coach_notes}
+            />
           )}
         </section>
 
-        <section className="mb-8 overflow-hidden rounded-[2.5rem] border border-cyan-400/10 bg-gradient-to-br from-slate-900 via-slate-950 to-cyan-950/20 p-6 text-white shadow-[0_0_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-          <div className="mb-6 flex items-center justify-between">
+        <section className="tal-chart-card">
+          <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.35em] text-cyan-300">
-                TAL Session History
+                TAL Official Score Register
               </p>
-
-              <h3 className="mt-2 text-3xl font-black tracking-tight">
+              <h3 className="mt-2 text-3xl font-black tracking-tight tal-text-glow">
                 Series registradas
               </h3>
-
               <p className="mt-2 text-sm text-slate-400">
-                Historial completo de puntuaciones y agrupaciones.
+                Registro por serie en formato de acta: flechas, total, promedio
+                y agrupacion.
               </p>
             </div>
 
-            <div className="rounded-3xl border border-cyan-400/20 bg-cyan-400/10 px-5 py-4 shadow-xl shadow-cyan-500/10 backdrop-blur-xl">
+            <div className="rounded-3xl border border-cyan-400/20 bg-cyan-400/10 px-5 py-4 text-center shadow-xl shadow-cyan-500/10 backdrop-blur-xl">
               <p className="text-xs font-black uppercase tracking-widest text-cyan-300">
                 Rondas
               </p>
-
               <p className="text-4xl font-black text-white">
                 {training.training_rounds?.length || 0}
               </p>
@@ -399,130 +365,117 @@ export default async function TrainingDetailPage({
 
           <div className="space-y-6">
             {training.training_rounds?.map((round: any) => (
-              <div
-                key={round.id}
-                className="relative overflow-hidden rounded-[2rem] border border-cyan-400/10 bg-white/[0.04] p-6 shadow-[0_0_50px_rgba(0,0,0,0.35)] backdrop-blur-xl"
-              >
-                <div className="absolute right-[-80px] top-[-80px] h-56 w-56 rounded-full bg-cyan-400/5 blur-3xl" />
-
-                <div className="relative z-10 mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div key={round.id} className="overflow-hidden rounded-[2rem] border border-cyan-400/10 bg-slate-950/70">
+                <div className="flex flex-col gap-4 border-b border-white/10 bg-cyan-400/10 px-5 py-4 md:flex-row md:items-center md:justify-between">
                   <div>
                     <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-300">
-                      Configuración
+                      Ronda #{round.round_number || 1}
                     </p>
-
-                    <h4 className="mt-2 text-2xl font-black">
-                      {round.distance_meters} m · Diana{" "}
-                      {round.target_size_cm || "-"} cm ·{" "}
-                      {round.series?.length || 0}/{round.total_series || "-"}{" "}
-                      series
+                    <h4 className="mt-1 text-xl font-black text-white">
+                      {round.distance_meters} m / Diana {round.target_size_cm || "-"} cm
                     </h4>
                   </div>
 
-                  <div className="flex gap-3">
-                    <div className="rounded-2xl border border-white/10 bg-slate-950/80 px-5 py-4 text-center">
-                      <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                        Series
-                      </p>
-
-                      <p className="mt-1 text-3xl font-black text-white">
-                        {round.series?.length || 0}
-                      </p>
-                    </div>
-
-                    <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-5 py-4 text-center">
-                      <p className="text-xs font-bold uppercase tracking-widest text-cyan-300">
-                        Score
-                      </p>
-
-                      <p className="mt-1 text-3xl font-black text-white">
-                        {round.series?.reduce(
-                          (sum: number, serie: any) =>
-                            sum + Number(serie.total_score || 0),
-                          0
-                        ) || 0}
-                      </p>
-                    </div>
+                  <div className="flex flex-wrap gap-2 text-xs font-black text-slate-300">
+                    <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1">
+                      {round.series?.length || 0}/{round.total_series || "-"} series
+                    </span>
+                    <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1">
+                      {round.arrows_per_series || 6} flechas/serie
+                    </span>
                   </div>
                 </div>
 
-                <div className="space-y-5">
-                  {round.series?.map((serie: any) => (
-                    <div
-                      key={serie.id}
-                      className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/70 p-5 shadow-xl"
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 to-transparent opacity-50" />
-
-                      <div className="relative z-10 mb-5 flex items-center justify-between">
-                        <div>
-                          <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-300">
-                            Serie
-                          </p>
-
-                          <h5 className="mt-1 text-2xl font-black">
-                            #{serie.series_number}
-                          </h5>
-                        </div>
-
-                        <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-5 py-3 shadow-lg shadow-cyan-500/10">
-                          <p className="text-xs font-black uppercase tracking-widest text-cyan-300">
-                            Total
-                          </p>
-
-                          <p className="mt-1 text-3xl font-black text-white">
-                            {serie.total_score}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
-                        {serie.arrows?.map((arrow: any, index: number) => {
-                          const displayValue = arrow.is_x
-                            ? "X"
-                            : arrow.score === 0
-                            ? "M"
-                            : arrow.score;
-
-                          const isX = displayValue === "X";
-                          const isMiss = displayValue === "M";
-
-                          return (
-                            <div
-                              key={arrow.id}
-                              className={`group relative overflow-hidden rounded-2xl border p-4 text-center transition-all hover:-translate-y-1 ${
-                                isX
-                                  ? "border-yellow-300/30 bg-yellow-400/10 shadow-[0_0_25px_rgba(250,204,21,0.2)]"
-                                  : isMiss
-                                  ? "border-red-400/20 bg-red-500/10"
-                                  : "border-white/10 bg-white/[0.04]"
-                              }`}
-                            >
-                              <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent opacity-50" />
-
-                              <div className="relative z-10">
-                                <p className="text-xs font-black uppercase tracking-widest text-slate-400">
-                                  F{index + 1}
-                                </p>
-
-                                <p
-                                  className={`mt-2 text-4xl font-black ${
-                                    isX
-                                      ? "text-yellow-300 drop-shadow-[0_0_15px_rgba(250,204,21,0.75)]"
-                                      : isMiss
-                                      ? "text-red-300"
-                                      : "text-white"
-                                  }`}
-                                >
-                                  {displayValue}
-                                </p>
-                              </div>
-                            </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-[920px] w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="border-b border-white/10 bg-white/[0.035] text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+                        <th className="px-4 py-4 text-left">Serie</th>
+                        <th className="px-3 py-4 text-center">F1</th>
+                        <th className="px-3 py-4 text-center">F2</th>
+                        <th className="px-3 py-4 text-center">F3</th>
+                        <th className="px-3 py-4 text-center">F4</th>
+                        <th className="px-3 py-4 text-center">F5</th>
+                        <th className="px-3 py-4 text-center">F6</th>
+                        <th className="px-4 py-4 text-center">X</th>
+                        <th className="px-4 py-4 text-center">M</th>
+                        <th className="px-4 py-4 text-center">Total</th>
+                        <th className="px-4 py-4 text-center">Prom.</th>
+                        <th className="px-4 py-4 text-center">Grupo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {round.series?.map((serie: any) => {
+                        const arrows = [...(serie.arrows || [])].sort(
+                          (a: any, b: any) => Number(a.arrow_number) - Number(b.arrow_number)
+                        );
+                        const xInSeries = arrows.filter((arrow: any) => arrow.is_x).length;
+                        const missInSeries = arrows.filter((arrow: any) => Number(arrow.score || 0) === 0).length;
+                        const groupSizeCm =
+                          serie.group_size_cm ??
+                          calculateGroupSizeCm(
+                            arrows,
+                            Number(round.target_size_cm || 0)
                           );
-                        })}
-                      </div>
-                    </div>
-                  ))}
+
+                        return (
+                          <tr key={serie.id} className="border-b border-white/10 transition hover:bg-cyan-400/5">
+                            <td className="px-4 py-4">
+                              <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-3 font-black text-cyan-300">
+                                {serie.series_number}
+                              </span>
+                            </td>
+
+                            {[0, 1, 2, 3, 4, 5].map((index) => {
+                              const display = arrowDisplay(arrows[index]);
+                              const isX = display === "X";
+                              const isMiss = display === "M";
+
+                              return (
+                                <td key={index} className="px-3 py-4 text-center">
+                                  <span
+                                    className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border text-base font-black ${
+                                      isX
+                                        ? "border-yellow-300/40 bg-yellow-400/10 text-yellow-300 shadow-[0_0_18px_rgba(250,204,21,0.20)]"
+                                        : isMiss
+                                        ? "border-red-400/30 bg-red-500/10 text-red-300"
+                                        : "border-white/10 bg-white/[0.04] text-white"
+                                    }`}
+                                  >
+                                    {display || "-"}
+                                  </span>
+                                </td>
+                              );
+                            })}
+
+                            <td className="px-4 py-4 text-center font-black text-yellow-300">
+                              {xInSeries}
+                            </td>
+                            <td className="px-4 py-4 text-center font-black text-red-300">
+                              {missInSeries}
+                            </td>
+                            <td className="px-4 py-4 text-center text-xl font-black text-cyan-300">
+                              {serie.total_score || 0}
+                            </td>
+                            <td className="px-4 py-4 text-center font-black text-white">
+                              {Number(serie.average_score || 0).toFixed(1)}
+                            </td>
+                            <td className="px-4 py-4 text-center font-black text-white">
+                              {groupSizeCm ? `${groupSizeCm} cm` : "-"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+
+                      {(!round.series || round.series.length === 0) && (
+                        <tr>
+                          <td colSpan={12} className="px-4 py-8 text-center text-slate-500">
+                            Aun no hay series registradas para esta ronda.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             ))}
@@ -531,21 +484,83 @@ export default async function TrainingDetailPage({
               training.training_rounds.length === 0) && (
               <div className="rounded-[2rem] border border-dashed border-white/10 bg-white/[0.03] p-10 text-center">
                 <p className="text-lg font-bold text-slate-400">
-                  Aún no hay series registradas.
-                </p>
-
-                <p className="mt-2 text-sm text-slate-500">
-                  Comienza capturando la primera serie del entrenamiento.
+                  Aun no hay series registradas.
                 </p>
               </div>
             )}
           </div>
         </section>
 
-        <section>
+        <section className="tal-chart-card">
           <TargetHeatmap arrows={allTrainingArrows} />
         </section>
       </div>
     </main>
+  );
+}
+
+function MetricCard({
+  icon: Icon,
+  title,
+  value,
+}: {
+  icon: LucideIcon;
+  title: string;
+  value: string | number;
+}) {
+  return (
+    <div className="tal-metric-card">
+      <span className="tal-metric-icon">
+        <Icon size={20} />
+      </span>
+      <p className="tal-metric-label">{title}</p>
+      <p className="tal-metric-value">{value}</p>
+    </div>
+  );
+}
+
+function SessionParam({
+  icon: Icon,
+  value,
+  title,
+  wide = false,
+}: {
+  icon: LucideIcon;
+  value: string;
+  title: string;
+  wide?: boolean;
+}) {
+  return (
+    <div
+      title={title}
+      className={`flex min-w-0 items-center gap-3 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 ${
+        wide ? "md:col-span-2" : ""
+      }`}
+    >
+      <Icon className="shrink-0 text-cyan-300" size={18} />
+      <span className="truncate text-sm font-black text-white">{value}</span>
+    </div>
+  );
+}
+
+function InfoPanel({
+  icon: Icon,
+  title,
+  value,
+}: {
+  icon: LucideIcon;
+  title: string;
+  value: string;
+}) {
+  return (
+    <div className="tal-chart-card">
+      <h3 className="mb-3 flex items-center gap-3 text-xl font-black text-white">
+        <span className="tal-metric-icon mb-0">
+          <Icon size={20} />
+        </span>
+        {title}
+      </h3>
+      <p className="text-sm leading-6 text-slate-400">{value}</p>
+    </div>
   );
 }

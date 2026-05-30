@@ -1,10 +1,32 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowLeft, Building2, Save } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
 import { createClub } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-export default function NewClubPage() {
+export default async function NewClubPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase
+    .from("users")
+    .select("role, club_id")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.role !== "admin") {
+    if (profile?.role === "coach" && profile.club_id) {
+      redirect(`/clubs/${profile.club_id}`);
+    }
+    redirect("/");
+  }
+
   return (
     <main className="min-h-screen tal-radial tal-grid-bg px-6 py-8 text-white">
       <div className="mx-auto max-w-4xl space-y-8">

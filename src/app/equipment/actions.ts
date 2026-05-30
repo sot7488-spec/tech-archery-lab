@@ -5,9 +5,42 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function createEquipment(formData: FormData) {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("No autenticado.");
+
+  const { data: currentUser } = await supabase
+    .from("users")
+    .select("role, club_id")
+    .eq("id", user.id)
+    .single();
+
+  if (currentUser?.role !== "admin" && currentUser?.role !== "coach") {
+    throw new Error("No tienes permiso para crear equipamiento.");
+  }
+
+  const athleteId = String(formData.get("athlete_id"));
+
+  if (!athleteId || athleteId === "null") {
+    throw new Error("Selecciona un atleta para registrar el equipamiento.");
+  }
+
+  if (currentUser.role === "coach") {
+    const { data: athlete } = await supabase
+      .from("athlete_profiles")
+      .select("club_id")
+      .eq("id", athleteId)
+      .single();
+
+    if (!athlete || athlete.club_id !== currentUser.club_id) {
+      throw new Error("Solo puedes crear equipamiento para atletas de tu club.");
+    }
+  }
 
   const payload = {
-    athlete_id: String(formData.get("athlete_id")),
+    athlete_id: athleteId,
     name: String(formData.get("name") || "Equipo principal"),
     bow_type: String(formData.get("bow_type") || "recurvo"),
 

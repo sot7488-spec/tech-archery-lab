@@ -57,6 +57,11 @@ export default async function ClubsPage({ searchParams }: PageProps) {
 
   if (!profile) redirect("/login");
 
+  if (profile.role === "coach") {
+    if (profile.club_id) redirect(`/clubs/${profile.club_id}`);
+    redirect("/");
+  }
+
   // =========================
   // Consulta principal de clubs
   // =========================
@@ -130,7 +135,7 @@ export default async function ClubsPage({ searchParams }: PageProps) {
     "w-full rounded-2xl border border-cyan-400/10 bg-slate-950/80 px-4 py-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 transition focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-400/10";
 
   const statCardClass =
-    "relative overflow-hidden rounded-[1.7rem] border border-cyan-400/10 bg-white/[0.04] p-5 shadow-[0_0_40px_rgba(0,0,0,0.25)] backdrop-blur-xl";
+    "tal-metric-card";
 
   return (
     <main className="min-h-screen overflow-hidden bg-slate-950 px-5 py-7 text-white">
@@ -156,7 +161,7 @@ export default async function ClubsPage({ searchParams }: PageProps) {
             Dashboard
           </Link>
 
-          <ClubCreateModal />
+          {profile.role === "admin" && <ClubCreateModal />}
         </div>
 
         {/* =========================

@@ -1,3 +1,5 @@
+import { Brain, Sparkles } from "lucide-react";
+
 type Props = {
   accuracy: number;
   averageScore: number;
@@ -81,8 +83,11 @@ export function AnalyticsInsights({
   };
 
   return (
-    <section className="mt-8 rounded-[2.5rem] border border-cyan-400/10 bg-gradient-to-br from-slate-900 via-slate-950 to-cyan-950/20 p-6 shadow-[0_0_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+    <section className="mt-8 tal-hero-panel p-6">
       <div className="mb-6">
+        <span className="tal-metric-icon">
+          <Brain size={20} />
+        </span>
         <p className="text-xs font-black uppercase tracking-[0.35em] text-cyan-300">
           TAL Coach AI
         </p>
@@ -100,13 +105,16 @@ export function AnalyticsInsights({
         {insights.map((insight, index) => (
           <div
             key={index}
-            className={`rounded-[2rem] border p-5 shadow-xl backdrop-blur-xl ${colorClasses[insight.color]}`}
+            className={`tal-metric-card border ${colorClasses[insight.color]}`}
           >
-            <h3 className="text-xl font-black">
+            <span className="tal-metric-icon">
+              <Sparkles size={20} />
+            </span>
+            <h3 className="relative z-10 text-xl font-black">
               {insight.title}
             </h3>
 
-            <p className="mt-3 text-sm leading-6 text-slate-200">
+            <p className="relative z-10 mt-3 text-sm leading-6 text-slate-200">
               {insight.description}
             </p>
           </div>

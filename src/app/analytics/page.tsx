@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardAnalytics } from "@/components/dashboard-analytics";
 import { AnalyticsInsights } from "@/components/analytics-insights";
@@ -18,16 +19,45 @@ export default async function AnalyticsPage({
 
   const params = await searchParams;
   const selectedAthleteId = params?.athlete_id || "";
-    const dateFrom = params?.date_from || "";
-const dateTo = params?.date_to || "";
-  const { data: athletes } = await supabase
+  const dateFrom = params?.date_from || "";
+  const dateTo = params?.date_to || "";
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) redirect("/login");
+
+  const { data: currentUser } = await supabase
+    .from("users")
+    .select("role, club_id")
+    .eq("id", user.id)
+    .single();
+
+  if (currentUser?.role === "coach" && !currentUser.club_id) redirect("/");
+
+  let athletesQuery = supabase
     .from("athlete_profiles")
     .select(`
       id,
+      club_id,
       users!athlete_profiles_user_id_fkey (
         name
       )
     `);
+
+  if (currentUser?.role === "coach") {
+    athletesQuery = athletesQuery.eq("club_id", currentUser.club_id);
+  }
+
+  const { data: athletes } = await athletesQuery;
+  const scopedAthleteIds = athletes?.map((athlete) => athlete.id) || [];
+  const safeSelectedAthleteId =
+    currentUser?.role === "coach" && selectedAthleteId
+      ? scopedAthleteIds.includes(selectedAthleteId)
+        ? selectedAthleteId
+        : ""
+      : selectedAthleteId;
 
   let query = supabase
     .from("training_sessions")
@@ -62,8 +92,10 @@ const dateTo = params?.date_to || "";
     `)
     .order("training_date", { ascending: true });
 
-  if (selectedAthleteId) {
-    query = query.eq("athlete_id", selectedAthleteId);
+  if (safeSelectedAthleteId) {
+    query = query.eq("athlete_id", safeSelectedAthleteId);
+  } else if (currentUser?.role === "coach") {
+    query = query.eq("club_id", currentUser.club_id);
   }
 
   if (dateFrom) {
@@ -119,7 +151,7 @@ if (dateTo) {
   );
 
   const selectedAthlete = athletes?.find(
-    (athlete: any) => athlete.id === selectedAthleteId
+    (athlete: any) => athlete.id === safeSelectedAthleteId
   );
 
   return (
@@ -160,7 +192,7 @@ if (dateTo) {
             <Link
               href="/analytics"
               className={`rounded-2xl px-4 py-2 text-sm font-black transition ${
-                !selectedAthleteId
+                !safeSelectedAthleteId
                   ? "bg-cyan-400 text-slate-950"
                   : "bg-white/10 text-slate-300 hover:bg-white/20"
               }`}
@@ -173,7 +205,7 @@ if (dateTo) {
                 key={athlete.id}
                 href={`/analytics?athlete_id=${athlete.id}`}
                 className={`rounded-2xl px-4 py-2 text-sm font-black transition ${
-                  selectedAthleteId === athlete.id
+                  safeSelectedAthleteId === athlete.id
                     ? "bg-cyan-400 text-slate-950"
                     : "bg-white/10 text-slate-300 hover:bg-white/20"
                 }`}
@@ -188,7 +220,7 @@ if (dateTo) {
   method="GET"
   className="mb-8 grid grid-cols-1 gap-4 rounded-[2rem] border border-cyan-400/10 bg-white/[0.04] p-5 shadow-2xl backdrop-blur-2xl md:grid-cols-4"
 >
-  <input type="hidden" name="athlete_id" value={selectedAthleteId} />
+  <input type="hidden" name="athlete_id" value={safeSelectedAthleteId} />
 
   <input
     name="date_from"
@@ -209,7 +241,7 @@ if (dateTo) {
   </button>
 
   <Link
-    href={selectedAthleteId ? `/analytics?athlete_id=${selectedAthleteId}` : "/analytics"}
+    href={safeSelectedAthleteId ? `/analytics?athlete_id=${safeSelectedAthleteId}` : "/analytics"}
     className="flex items-center justify-center rounded-2xl border border-white/10 bg-white/10 px-5 py-3 text-sm font-black text-white transition hover:bg-white/20"
   >
     Limpiar fechas

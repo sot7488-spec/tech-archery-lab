@@ -2,7 +2,8 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { ArrowLeft, Calendar, Medal, Target, Trophy } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 
 type PageProps = {
   searchParams?: Promise<{
@@ -13,6 +14,21 @@ type PageProps = {
 export default async function ClasificadosConadePage({
   searchParams,
 }: PageProps) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) redirect("/login");
+
+  const { data: profile } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.role !== "admin") redirect("/");
+
   const params = await searchParams;
   const markId = params?.mark_id || "";
 
