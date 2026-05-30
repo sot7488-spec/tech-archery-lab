@@ -8,10 +8,8 @@ import {
   ArrowRight,
   CalendarDays,
   CheckCircle2,
-  Clock,
-  Crosshair,
+  ChevronDown,
   HelpCircle,
-  MapPin,
   Target,
   Trophy,
   Users,
@@ -263,6 +261,9 @@ export default async function AgendaPage({ searchParams }: PageProps) {
     normalizeType(training.session_type).includes("competencia")
   ).length;
   const uniqueAthletes = new Set(trainings.map((training: any) => training.athlete_id));
+  const firstTrainingDate = trainings[0]?.training_date;
+  const defaultOpenDate =
+    weekDays.some((day) => toDateInputValue(day) === today) ? today : firstTrainingDate;
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-slate-950 px-6 py-8 text-white">
@@ -359,29 +360,31 @@ export default async function AgendaPage({ searchParams }: PageProps) {
             </div>
           )}
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             {weekDays.map((day) => {
               const dateKey = toDateInputValue(day);
               const dayTrainings = trainingsByDate.get(dateKey) || [];
               const isToday = dateKey === today;
+              const isOpenByDefault = dateKey === defaultOpenDate;
 
               return (
-                <div
+                <details
                   key={dateKey}
-                  className={`grid gap-5 rounded-[1.8rem] border p-5 lg:grid-cols-[180px_1fr] ${
+                  open={isOpenByDefault}
+                  className={`group rounded-[1.8rem] border ${
                     isToday
                       ? "border-cyan-300/30 bg-cyan-400/[0.07] shadow-[0_0_35px_rgba(34,211,238,0.12)]"
                       : "border-white/10 bg-slate-950/55"
                   }`}
                 >
-                  <div className="flex items-center justify-between gap-4 lg:block">
-                    <div className="flex items-center gap-4 lg:block">
-                      <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-cyan-300/20 bg-slate-950/70 text-3xl font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 outline-none marker:hidden md:p-5 [&::-webkit-details-marker]:hidden">
+                    <div className="flex min-w-0 items-center gap-4">
+                      <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-cyan-300/20 bg-slate-950/70 text-2xl font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
                         {day.getDate()}
-                      </div>
+                      </span>
 
-                      <div>
-                        <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-300">
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-black uppercase tracking-[0.22em] text-cyan-300">
                           {day.toLocaleDateString("es-MX", { weekday: "long" })}
                         </p>
                         <p className="mt-1 text-sm font-bold text-slate-400">
@@ -393,13 +396,18 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                       </div>
                     </div>
 
-                    <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-slate-300">
-                      <CalendarDays size={14} className="text-cyan-300" />
-                      {dayTrainings.length}
-                    </span>
-                  </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="hidden rounded-full border border-white/10 bg-white/10 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-slate-300 sm:inline-flex sm:items-center sm:gap-2">
+                        <CalendarDays size={14} className="text-cyan-300" />
+                        {dayTrainings.length} sesiones
+                      </span>
+                      <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-slate-950/50 text-cyan-200 transition group-open:rotate-180">
+                        <ChevronDown size={18} />
+                      </span>
+                    </div>
+                  </summary>
 
-                  <div className="relative space-y-3 border-l border-cyan-400/20 pl-5">
+                  <div className="mx-4 mb-4 space-y-2 border-t border-white/10 pt-4 md:mx-5 md:mb-5">
                     {dayTrainings.map((training: any) => {
                       const style = typeStyle(training.session_type);
                       const response = responseStyle(
@@ -411,48 +419,31 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                       return (
                         <div
                           key={training.id}
-                          className={`group relative overflow-hidden rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:shadow-[0_18px_45px_rgba(0,0,0,0.22)] ${style.accent}`}
+                          className={`relative overflow-hidden rounded-2xl border p-3 transition hover:-translate-y-0.5 hover:shadow-[0_18px_45px_rgba(0,0,0,0.2)] md:p-4 ${style.accent}`}
                         >
-                          <span className={`absolute -left-[29px] top-6 h-4 w-4 rounded-full border-2 border-slate-950 ${style.dot}`} />
                           <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent opacity-70" />
 
                           <Link href={`/trainings/${training.id}`} className="block">
-                            <div className="grid gap-4 lg:grid-cols-[minmax(180px,0.8fr)_1.4fr_auto] lg:items-center">
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/45 px-3 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-white">
-                                    <Clock size={13} />
-                                    {formatTime(training.start_time)}
-                                  </span>
-                                  <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-black uppercase tracking-[0.12em]">
-                                    <Activity size={13} />
-                                    {style.label}
-                                  </span>
-                                </div>
-
-                                <h4 className="mt-3 truncate text-xl font-black text-white">
+                            <div className="grid gap-3 xl:grid-cols-[minmax(170px,0.8fr)_minmax(150px,0.7fr)_minmax(90px,0.45fr)_1.5fr_auto] xl:items-center">
+                              <div className="min-w-0 rounded-xl bg-slate-950/20 px-3 py-2">
+                                <h4 className="truncate text-base font-black text-white">
                                   {getAthleteName(training.athlete_profiles?.users)}
                                 </h4>
                               </div>
 
-                              <div className="grid gap-2 text-sm font-bold text-slate-200 sm:grid-cols-2 xl:grid-cols-4">
-                                <p className="flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-slate-950/30 px-3 py-2">
-                                  <MapPin size={15} className="shrink-0 text-cyan-200" />
-                                  <span className="truncate">{training.location || "Sin lugar"}</span>
-                                </p>
-                                <p className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/30 px-3 py-2">
-                                  <Target size={15} className="shrink-0 text-cyan-200" />
-                                  {round.distance_meters || "-"} m
-                                </p>
-                                <p className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/30 px-3 py-2">
-                                  <Crosshair size={15} className="shrink-0 text-cyan-200" />
-                                  {round.target_size_cm || "-"} cm
-                                </p>
-                                <p className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/30 px-3 py-2">
-                                  <CalendarDays size={15} className="shrink-0 text-cyan-200" />
-                                  {round.total_series || "-"} series
-                                </p>
-                              </div>
+                              <p className="inline-flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-black uppercase tracking-[0.12em]">
+                                <Activity size={14} className="shrink-0" />
+                                <span className="truncate">{style.label}</span>
+                              </p>
+
+                              <p className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/30 px-3 py-2 text-sm font-black text-white">
+                                <Target size={15} className="shrink-0 text-cyan-200" />
+                                {round.distance_meters || "-"} m
+                              </p>
+
+                              <p className="line-clamp-2 min-w-0 rounded-xl border border-white/10 bg-slate-950/25 px-3 py-2 text-sm font-bold text-slate-300">
+                                {training.objective || "Sin objetivo"}
+                              </p>
 
                               <div className="flex items-center justify-start lg:justify-end">
                                 <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-2 text-[10px] font-black uppercase tracking-[0.1em] ${response.className}`}>
@@ -461,10 +452,6 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                                 </span>
                               </div>
                             </div>
-
-                            <p className="mt-4 line-clamp-2 rounded-xl border border-white/10 bg-slate-950/25 px-3 py-2 text-sm font-bold text-slate-300">
-                              {training.objective || "Sin objetivo"}
-                            </p>
                           </Link>
 
                           {isAthlete && (
@@ -497,12 +484,12 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                     })}
 
                     {dayTrainings.length === 0 && (
-                      <div className="flex min-h-24 items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm font-bold text-slate-500">
+                      <div className="flex min-h-16 items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-4 text-sm font-bold text-slate-500">
                         Sin entrenamientos programados
                       </div>
                     )}
                   </div>
-                </div>
+                </details>
               );
             })}
           </div>
