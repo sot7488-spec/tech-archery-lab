@@ -36,6 +36,7 @@ const adminNavItems: NavItem[] = [
   { href: "/tuning", label: "Tuning", icon: SlidersHorizontal },
   { href: "/trainings", label: "Entrenamientos", icon: Activity },
   { href: "/agenda", label: "Agenda", icon: CalendarDays },
+  { href: "/leagues", label: "Liga indoor", icon: Trophy },
   { href: "/conade", label: "CONADE", icon: Trophy },
   { href: "/admin/invitations", label: "Invitaciones", icon: UserPlus },
 ];
@@ -54,6 +55,7 @@ function coachNavItems(clubId: string | null): NavItem[] {
     { href: "/tuning", label: "Tuning", icon: SlidersHorizontal },
     { href: "/trainings", label: "Entrenamientos", icon: Activity },
     { href: "/agenda", label: "Agenda", icon: CalendarDays },
+    { href: "/leagues", label: "Liga indoor", icon: Trophy },
   ];
 }
 
@@ -133,6 +135,11 @@ export default function Sidebar() {
         href: "/agenda",
         label: "Mi agenda",
         icon: CalendarDays,
+      },
+      {
+        href: "/leagues",
+        label: "Liga indoor",
+        icon: Trophy,
       },
       {
         href: `/equipment/${athlete.id}`,

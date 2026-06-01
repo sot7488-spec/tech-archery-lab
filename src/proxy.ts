@@ -62,6 +62,7 @@ export async function proxy(request: NextRequest) {
     `/athletes/profile/${athlete.id}`,
     `/analytics/${athlete.id}`,
     `/equipment/${athlete.id}`,
+    "/leagues",
     `/trainings/athletes/${athlete.id}`,
   ];
 
@@ -90,6 +91,7 @@ export const config = {
     "/clubs/:path*",
     "/conade/:path*",
     "/equipment/:path*",
+    "/leagues/:path*",
     "/tuning/:path*",
     "/trainings/:path*",
   ],
