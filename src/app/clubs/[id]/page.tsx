@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import ClubDeleteModal from "../ClubDeleteModal";
 import {
   ArrowLeft,
   MapPin,
@@ -132,6 +133,16 @@ export default async function ClubDashboardPage({ params }: PageProps) {
 
   const users = usersRaw || [];
 
+  const { data: clubsForMigrationRaw } =
+    profile.role === "admin"
+      ? await supabase
+          .from("clubs")
+          .select("id, name")
+          .neq("id", id)
+          .eq("is_active", true)
+          .order("name", { ascending: true })
+      : { data: [] };
+
   const staffUsers = users.filter((member: any) =>
     ["admin", "coach", "trainer", "staff"].includes(
       String(member.role || "").toLowerCase()
@@ -162,7 +173,7 @@ export default async function ClubDashboardPage({ params }: PageProps) {
       </div>
 
       <div className="mx-auto max-w-7xl">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <Link
             href={backHref}
             className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-cyan-300 backdrop-blur-xl transition hover:border-cyan-300/30 hover:bg-cyan-400/10"
@@ -171,15 +182,25 @@ export default async function ClubDashboardPage({ params }: PageProps) {
             {backLabel}
           </Link>
 
-          <span
-            className={
-              club.is_active
-                ? "rounded-full border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-emerald-300"
-                : "rounded-full border border-red-400/20 bg-red-400/10 px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-red-300"
-            }
-          >
-            {club.is_active ? "Activo" : "Inactivo"}
-          </span>
+          <div className="flex flex-wrap items-center gap-3">
+            {profile.role === "admin" && (
+              <ClubDeleteModal
+                athleteCount={athletes.length}
+                club={{ id: club.id, name: club.name }}
+                clubs={clubsForMigrationRaw || []}
+              />
+            )}
+
+            <span
+              className={
+                club.is_active
+                  ? "rounded-full border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-emerald-300"
+                  : "rounded-full border border-red-400/20 bg-red-400/10 px-4 py-2 text-xs font-black uppercase tracking-[0.2em] text-red-300"
+              }
+            >
+              {club.is_active ? "Activo" : "Inactivo"}
+            </span>
+          </div>
         </div>
 
         <section className="mb-6 overflow-hidden rounded-[2.2rem] border border-cyan-400/10 bg-gradient-to-br from-cyan-400/10 via-slate-900 to-slate-950 p-7 shadow-[0_0_80px_rgba(34,211,238,0.08)]">

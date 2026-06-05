@@ -2,20 +2,25 @@ export const dynamic = "force-dynamic";
 
 import { TargetHeatmap } from "@/components/target-heatmap";
 import { AthleteCharts } from "@/components/athlete-charts";
+import AthleteManageModal from "../AthleteManageModal";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   Activity,
   ArrowRight,
   BarChart3,
+  Brain,
   CalendarClock,
   CheckCircle2,
   Crosshair,
+  Dumbbell,
   Filter,
   Flame,
   Gauge,
   Hand,
+  Mail,
   Medal,
+  Phone,
   Sparkles,
   Target,
   Trophy,
@@ -107,6 +112,37 @@ export default async function AthleteProfilePage({
   if (currentUser?.role === "athlete" && athlete.user_id !== user.id) {
     redirect("/athletes/profile");
   }
+
+  const canManageAthlete =
+    currentUser?.role === "admin" || currentUser?.role === "coach";
+
+  const clubsForRelocationQuery = supabase
+    .from("clubs")
+    .select("id, name")
+    .eq("is_active", true)
+    .order("name", { ascending: true });
+
+  if (athlete.club_id) {
+    clubsForRelocationQuery.neq("id", athlete.club_id);
+  }
+
+  const { data: clubsForRelocationRaw } = canManageAthlete
+    ? await clubsForRelocationQuery
+    : { data: [] };
+
+  const { data: supportStaffRaw } = athlete.club_id
+    ? await supabase
+        .from("performance_staff")
+        .select(
+          "id, staff_type, name, email, phone, specialty, certification_level, certification_institution"
+        )
+        .eq("club_id", athlete.club_id)
+        .eq("is_active", true)
+        .order("staff_type", { ascending: true })
+        .order("name", { ascending: true })
+    : { data: [] };
+
+  const supportStaff = supportStaffRaw || [];
 
   const trainings = athlete.training_sessions || [];
 
@@ -424,6 +460,31 @@ export default async function AthleteProfilePage({
   </div>
 </section>
 
+      {canManageAthlete && (
+        <section className="mb-6 rounded-[1.6rem] border border-yellow-300/15 bg-yellow-300/[0.06] p-4 shadow-[0_0_40px_rgba(250,204,21,0.06)]">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.3em] text-yellow-200">
+                Administracion
+              </p>
+              <p className="mt-1 text-sm font-bold text-slate-400">
+                Reubica este atleta a otro club o elimina su cuenta y registros
+                relacionados.
+              </p>
+            </div>
+
+            <AthleteManageModal
+              athlete={{
+                id: athlete.id,
+                name: athlete.users?.name || null,
+                club_id: athlete.club_id || null,
+              }}
+              clubs={clubsForRelocationRaw || []}
+            />
+          </div>
+        </section>
+      )}
+
       <section className="tal-chart-card mb-6">
         <div className="mb-5 flex items-center gap-3">
           <span className="tal-metric-icon mb-0">
@@ -635,6 +696,24 @@ export default async function AthleteProfilePage({
         </div>
       </section>
 
+      <section className="mb-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <SupportContactGroup
+          title="Preparador fisico"
+          icon={Dumbbell}
+          staff={supportStaff.filter(
+            (member: any) => member.staff_type === "physical_trainer"
+          )}
+        />
+
+        <SupportContactGroup
+          title="Psicologo deportivo"
+          icon={Brain}
+          staff={supportStaff.filter(
+            (member: any) => member.staff_type === "sports_psychologist"
+          )}
+        />
+      </section>
+
       <section className="mb-6 grid grid-cols-1 gap-5 md:grid-cols-4">
         <InfoCard title="Categoría" value={athlete.category || "-"} />
         <InfoCard title="Mano dominante" value={athlete.dominant_hand || "-"} />
@@ -646,6 +725,78 @@ export default async function AthleteProfilePage({
         <TargetHeatmap arrows={allArrows} />
       </section>
     </main>
+  );
+}
+
+function SupportContactGroup({
+  title,
+  icon: Icon,
+  staff,
+}: {
+  title: string;
+  icon: LucideIcon;
+  staff: any[];
+}) {
+  return (
+    <div className="tal-chart-card">
+      <div className="mb-5 flex items-center gap-3">
+        <span className="tal-metric-icon mb-0">
+          <Icon size={20} />
+        </span>
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-300">
+            Contacto
+          </p>
+          <h3 className="text-2xl font-black text-white">{title}</h3>
+        </div>
+      </div>
+
+      <div className="grid gap-3">
+        {staff.map((member) => (
+          <article
+            key={member.id}
+            className="rounded-2xl border border-white/10 bg-slate-950/50 p-4"
+          >
+            <h4 className="text-lg font-black text-white">{member.name}</h4>
+            <p className="mt-1 text-sm font-bold text-slate-400">
+              {member.specialty || member.certification_level || "Contacto del club"}
+            </p>
+
+            <div className="mt-4 grid gap-2 text-sm font-bold text-slate-300 sm:grid-cols-2">
+              <ContactPill icon={Mail} value={member.email || "Sin correo"} />
+              <ContactPill icon={Phone} value={member.phone || "Sin telefono"} />
+            </div>
+
+            {member.certification_institution && (
+              <p className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-bold text-slate-400">
+                {member.certification_institution}
+              </p>
+            )}
+          </article>
+        ))}
+
+        {staff.length === 0 && (
+          <p className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm font-bold text-slate-500">
+            Aun no hay contacto registrado para este club.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ContactPill({
+  icon: Icon,
+  value,
+}: {
+  icon: LucideIcon;
+  value: string;
+}) {
+  return (
+    <span className="inline-flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+      <Icon size={15} className="shrink-0 text-cyan-300" />
+      <span className="truncate">{value}</span>
+    </span>
   );
 }
 

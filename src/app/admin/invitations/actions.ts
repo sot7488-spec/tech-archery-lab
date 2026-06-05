@@ -7,10 +7,12 @@ import {
   createInvitationToken,
   hashInvitationToken,
 } from "@/lib/invitations";
+import { sendStaffInvitationEmail } from "@/lib/mail";
 
 type InvitationState = {
   error?: string;
   inviteUrl?: string;
+  emailStatus?: string;
 };
 
 export async function createStaffInvitation(
@@ -72,10 +74,35 @@ export async function createStaffInvitation(
   const host = requestHeaders.get("x-forwarded-host") || requestHeaders.get("host");
   const protocol = requestHeaders.get("x-forwarded-proto") || "http";
   const baseUrl = host ? `${protocol}://${host}` : "";
+  const inviteUrl = `${baseUrl}/invite/${token}`;
+
+  let emailStatus = "";
+
+  try {
+    const { data: club } = clubId
+      ? await supabase.from("clubs").select("name").eq("id", clubId).maybeSingle()
+      : { data: null };
+
+    const result = await sendStaffInvitationEmail({
+      supabase,
+      email,
+      inviteUrl,
+      role,
+      clubName: club?.name || null,
+    });
+
+    emailStatus = result.message;
+  } catch (mailError) {
+    emailStatus =
+      mailError instanceof Error
+        ? `Invitacion creada, pero no se pudo enviar el correo: ${mailError.message}`
+        : "Invitacion creada, pero no se pudo enviar el correo.";
+  }
 
   revalidatePath("/admin/invitations");
 
   return {
-    inviteUrl: `${baseUrl}/invite/${token}`,
+    inviteUrl,
+    emailStatus,
   };
 }

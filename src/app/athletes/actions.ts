@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 export async function createAthlete(formData: FormData) {
@@ -159,4 +160,41 @@ export async function createAthlete(formData: FormData) {
   }
 
   revalidatePath("/athletes");
+}
+
+export async function manageAthleteWithStrategy(formData: FormData) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("No autenticado.");
+
+  const { data: currentUser } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (currentUser?.role !== "admin" && currentUser?.role !== "coach") {
+    throw new Error("No tienes permiso para modificar atletas.");
+  }
+
+  const athleteId = String(formData.get("athlete_id") || "");
+  const strategy = String(formData.get("strategy") || "");
+  const targetClubId = String(formData.get("target_club_id") || "") || null;
+
+  if (!athleteId) throw new Error("Falta el atleta.");
+
+  const { error } = await supabase.rpc("manage_athlete_with_strategy", {
+    p_athlete_id: athleteId,
+    p_strategy: strategy,
+    p_target_club_id: targetClubId,
+  });
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/athletes");
+  redirect("/athletes");
 }
