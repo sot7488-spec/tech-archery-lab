@@ -131,6 +131,7 @@ export default async function AthleteAnalyticsPage({
     .select(`
       id,
       training_date,
+      status,
       total_score,
       total_arrows,
       average_score,
@@ -143,6 +144,9 @@ export default async function AthleteAnalyticsPage({
       ),
       training_rounds (
         id,
+        scoring_enabled,
+        total_series,
+        arrows_per_series,
         series (
           id,
           series_number,
@@ -172,7 +176,9 @@ export default async function AthleteAnalyticsPage({
 
   const allSeries =
     trainings?.flatMap((training: any) =>
-      training.training_rounds?.flatMap((round: any) => round.series || []) || []
+      training.training_rounds
+        ?.filter((round: any) => round.scoring_enabled !== false)
+        .flatMap((round: any) => round.series || []) || []
     ) || [];
 
   const allArrows =
@@ -197,12 +203,29 @@ export default async function AthleteAnalyticsPage({
       : 0;
 
   const xCount = allArrows.filter((arrow: any) => arrow.is_x).length;
+  const tenCount = allArrows.filter(
+    (arrow: any) => Number(arrow.score) === 10
+  ).length;
+  const effectiveness =
+    totalArrows > 0
+      ? Number(((tenCount / totalArrows) * 100).toFixed(1))
+      : 0;
 
   const monthlyScores =
-    trainings?.map((training: any, index: number) => ({
-      name: `E${index + 1}`,
-      score: Number(training.total_score || 0),
-    })) || [];
+    trainings?.map((training: any, index: number) => {
+      const scoringSeries =
+        training.training_rounds
+          ?.filter((round: any) => round.scoring_enabled !== false)
+          .flatMap((round: any) => round.series || []) || [];
+
+      return {
+        name: `E${index + 1}`,
+        score: scoringSeries.reduce(
+          (sum: number, serie: any) => sum + Number(serie.total_score || 0),
+          0
+        ),
+      };
+    }) || [];
 
   const arrowDistribution = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0].map(
     (score) => ({
@@ -217,6 +240,28 @@ export default async function AthleteAnalyticsPage({
     : athlete.users;
 
   const athleteName = athleteUser?.name || "Atleta";
+  const completedTrainings =
+    trainings?.filter((training: any) => training.status === "completed") || [];
+  const totalRegisteredArrowVolume = completedTrainings.reduce(
+    (sum: number, training: any) => {
+      const trainingVolume =
+        training.training_rounds
+          ?.filter((round: any) => round.scoring_enabled !== false)
+          .flatMap((round: any) => round.series || [])
+          .reduce(
+            (seriesSum: number, serie: any) =>
+              seriesSum + (serie.arrows?.length || 0),
+            0
+          ) || 0;
+
+      return sum + trainingVolume;
+    },
+    0
+  );
+  const averageArrowVolume =
+    completedTrainings.length > 0
+      ? Number((totalRegisteredArrowVolume / completedTrainings.length).toFixed(1))
+      : 0;
 
   return (
     <main className="min-h-screen bg-slate-950 px-6 py-8 text-white">
@@ -298,7 +343,7 @@ export default async function AthleteAnalyticsPage({
           </Link>
         </form>
 
-        <div className="mb-8 grid grid-cols-2 gap-5 xl:grid-cols-4">
+        <div className="mb-8 grid grid-cols-2 gap-5 xl:grid-cols-6">
           <div className="rounded-[2rem] border border-cyan-400/10 bg-white/[0.04] p-6 shadow-[0_0_50px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
             <p className="text-sm font-bold text-slate-400">
               Accuracy promedio
@@ -311,11 +356,31 @@ export default async function AthleteAnalyticsPage({
 
           <div className="rounded-[2rem] border border-cyan-400/10 bg-white/[0.04] p-6 shadow-[0_0_50px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
             <p className="text-sm font-bold text-slate-400">
+              Efectividad al 10
+            </p>
+
+            <h2 className="mt-3 text-5xl font-black text-emerald-300">
+              {effectiveness}%
+            </h2>
+          </div>
+
+          <div className="rounded-[2rem] border border-cyan-400/10 bg-white/[0.04] p-6 shadow-[0_0_50px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+            <p className="text-sm font-bold text-slate-400">
               Promedio general
             </p>
 
             <h2 className="mt-3 text-5xl font-black text-cyan-300">
               {averageScore}
+            </h2>
+          </div>
+
+          <div className="rounded-[2rem] border border-cyan-400/10 bg-white/[0.04] p-6 shadow-[0_0_50px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+            <p className="text-sm font-bold text-slate-400">
+              Volumen prom.
+            </p>
+
+            <h2 className="mt-3 text-5xl font-black text-cyan-300">
+              {averageArrowVolume}
             </h2>
           </div>
 

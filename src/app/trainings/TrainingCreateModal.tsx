@@ -9,6 +9,7 @@ import {
   Ruler,
   Save,
   Target,
+  Trash2,
   X,
 } from "lucide-react";
 import { createTraining } from "./actions";
@@ -28,6 +29,17 @@ type Props = {
   athletes: AthleteOption[];
   equipmentProfiles: EquipmentOption[];
   selectedAthleteId?: string;
+};
+
+type TrainingRoundDraft = {
+  id: number;
+  distanceMeters: string;
+  targetSizeCm: string;
+  totalSeries: string;
+  arrowsPerSeries: string;
+  sessionType: string;
+  objective: string;
+  scoringEnabled: boolean;
 };
 
 const inputClass =
@@ -53,6 +65,51 @@ export default function TrainingCreateModal({
   selectedAthleteId = "",
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [rounds, setRounds] = useState<TrainingRoundDraft[]>([
+    {
+      id: 1,
+      distanceMeters: "",
+      targetSizeCm: "",
+      totalSeries: "",
+      arrowsPerSeries: "6",
+      sessionType: "técnico",
+      objective: "",
+      scoringEnabled: true,
+    },
+  ]);
+
+  function updateRound(
+    id: number,
+    patch: Partial<Omit<TrainingRoundDraft, "id">>
+  ) {
+    setRounds((current) =>
+      current.map((round) =>
+        round.id === id ? { ...round, ...patch } : round
+      )
+    );
+  }
+
+  function addRound() {
+    setRounds((current) => [
+      ...current,
+      {
+        id: Math.max(...current.map((round) => round.id)) + 1,
+        distanceMeters: "",
+        targetSizeCm: "",
+        totalSeries: "",
+        arrowsPerSeries: "6",
+        sessionType: "técnico",
+        objective: "",
+        scoringEnabled: true,
+      },
+    ]);
+  }
+
+  function removeRound(id: number) {
+    setRounds((current) =>
+      current.length === 1 ? current : current.filter((round) => round.id !== id)
+    );
+  }
 
   return (
     <>
@@ -177,10 +234,10 @@ export default function TrainingCreateModal({
               <section className={sectionClass}>
                 <div className={sectionTitleClass}>
                   <Ruler size={14} />
-                  Configuración de ronda
+                  Rondas programadas
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-4">
                   <input
                     name="brace_height_cm"
                     type="number"
@@ -188,32 +245,170 @@ export default function TrainingCreateModal({
                     placeholder="Brace height cm"
                     className={inputClass}
                   />
-
-                  <input
-                    name="distance_meters"
-                    type="number"
-                    placeholder="Distancia m"
-                    className={inputClass}
-                    required
-                  />
-
-                  <input
-                    name="target_size_cm"
-                    type="number"
-                    placeholder="Tamaño diana cm"
-                    className={inputClass}
-                    required
-                  />
-
-                  <input
-                    name="total_series"
-                    type="number"
-                    placeholder="Número de series"
-                    className={inputClass}
-                    min={1}
-                    required
-                  />
                 </div>
+
+                <input type="hidden" name="rounds_count" value={rounds.length} />
+
+                <div className="space-y-3">
+                  {rounds.map((round, index) => {
+                    const roundNumber = index + 1;
+
+                    return (
+                      <div
+                        key={round.id}
+                        className="rounded-2xl border border-white/10 bg-slate-950/70 p-3"
+                      >
+                        <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.26em] text-cyan-300">
+                              Ronda {roundNumber}
+                            </p>
+                            <p className="mt-1 text-sm font-bold text-slate-400">
+                              Distancia, series, flechas y modo de registro.
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs font-black text-cyan-200">
+                              <input
+                                name={`round_scoring_enabled_${roundNumber}`}
+                                type="checkbox"
+                                checked={round.scoringEnabled}
+                                onChange={(event) =>
+                                  updateRound(round.id, {
+                                    scoringEnabled: event.target.checked,
+                                  })
+                                }
+                                className="h-4 w-4 accent-cyan-300"
+                              />
+                              Registrar puntos
+                            </label>
+
+                            <button
+                              type="button"
+                              onClick={() => removeRound(round.id)}
+                              disabled={rounds.length === 1}
+                              className="rounded-xl border border-red-400/20 bg-red-500/10 p-2 text-red-300 transition hover:bg-red-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                              title="Eliminar ronda"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+                          <select
+                            name={`round_session_type_${roundNumber}`}
+                            className={inputClass}
+                            value={round.sessionType}
+                            onChange={(event) =>
+                              updateRound(round.id, {
+                                sessionType: event.target.value,
+                              })
+                            }
+                            required
+                          >
+                            <option className="bg-slate-900 text-white" value="técnico">
+                              Técnico
+                            </option>
+                            <option className="bg-slate-900 text-white" value="puntuación">
+                              Puntuación
+                            </option>
+                            <option className="bg-slate-900 text-white" value="competencia">
+                              Competencia
+                            </option>
+                            <option className="bg-slate-900 text-white" value="tuning">
+                              Tuning
+                            </option>
+                            <option className="bg-slate-900 text-white" value="físico">
+                              Físico
+                            </option>
+                          </select>
+
+                          <input
+                            name={`round_distance_meters_${roundNumber}`}
+                            type="number"
+                            placeholder="Distancia m"
+                            className={inputClass}
+                            value={round.distanceMeters}
+                            onChange={(event) =>
+                              updateRound(round.id, {
+                                distanceMeters: event.target.value,
+                              })
+                            }
+                            required
+                          />
+
+                          <input
+                            name={`round_target_size_cm_${roundNumber}`}
+                            type="number"
+                            placeholder="Diana cm"
+                            className={inputClass}
+                            value={round.targetSizeCm}
+                            onChange={(event) =>
+                              updateRound(round.id, {
+                                targetSizeCm: event.target.value,
+                              })
+                            }
+                            required
+                          />
+
+                          <input
+                            name={`round_total_series_${roundNumber}`}
+                            type="number"
+                            placeholder="Series"
+                            className={inputClass}
+                            min={1}
+                            value={round.totalSeries}
+                            onChange={(event) =>
+                              updateRound(round.id, {
+                                totalSeries: event.target.value,
+                              })
+                            }
+                            required
+                          />
+
+                          <input
+                            name={`round_arrows_per_series_${roundNumber}`}
+                            type="number"
+                            placeholder="Flechas/serie"
+                            className={inputClass}
+                            min={1}
+                            max={12}
+                            value={round.arrowsPerSeries}
+                            onChange={(event) =>
+                              updateRound(round.id, {
+                                arrowsPerSeries: event.target.value,
+                              })
+                            }
+                            required
+                          />
+                        </div>
+
+                        <input
+                          name={`round_objective_${roundNumber}`}
+                          placeholder="Objetivo específico de esta ronda"
+                          className={`${inputClass} mt-3`}
+                          value={round.objective}
+                          onChange={(event) =>
+                            updateRound(round.id, {
+                              objective: event.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={addRound}
+                  className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-cyan-200 transition hover:bg-cyan-400/20"
+                >
+                  <Plus size={15} />
+                  Agregar ronda
+                </button>
               </section>
 
               <section className={sectionClass}>

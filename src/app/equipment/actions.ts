@@ -17,7 +17,11 @@ export async function createEquipment(formData: FormData) {
     .eq("id", user.id)
     .single();
 
-  if (currentUser?.role !== "admin" && currentUser?.role !== "coach") {
+  if (
+    currentUser?.role !== "admin" &&
+    currentUser?.role !== "coach" &&
+    currentUser?.role !== "athlete"
+  ) {
     throw new Error("No tienes permiso para crear equipamiento.");
   }
 
@@ -27,16 +31,22 @@ export async function createEquipment(formData: FormData) {
     throw new Error("Selecciona un atleta para registrar el equipamiento.");
   }
 
-  if (currentUser.role === "coach") {
-    const { data: athlete } = await supabase
-      .from("athlete_profiles")
-      .select("club_id")
-      .eq("id", athleteId)
-      .single();
+  const { data: athlete } = await supabase
+    .from("athlete_profiles")
+    .select("club_id, user_id")
+    .eq("id", athleteId)
+    .single();
 
-    if (!athlete || athlete.club_id !== currentUser.club_id) {
-      throw new Error("Solo puedes crear equipamiento para atletas de tu club.");
-    }
+  if (!athlete) {
+    throw new Error("Atleta no encontrado.");
+  }
+
+  if (currentUser.role === "coach" && athlete.club_id !== currentUser.club_id) {
+    throw new Error("Solo puedes crear equipamiento para atletas de tu club.");
+  }
+
+  if (currentUser.role === "athlete" && athlete.user_id !== user.id) {
+    throw new Error("Solo puedes crear equipamiento para tu propio perfil.");
   }
 
   const payload = {
@@ -96,4 +106,5 @@ export async function createEquipment(formData: FormData) {
   }
 
   revalidatePath("/equipment");
+  revalidatePath(`/equipment/${athleteId}`);
 }

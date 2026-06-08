@@ -5,6 +5,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import TrainingSeriesCapture from "./TrainingSeriesCapture";
+import TrainingRoundFinalizeForm from "./TrainingRoundFinalizeForm";
+import TrainingDeleteButton from "../TrainingDeleteButton";
 import {
   Activity,
   ArrowLeft,
@@ -160,22 +162,48 @@ export default async function TrainingDetailPage({
     redirect("/trainings");
   }
 
-  const currentRound = training.training_rounds?.[0];
+  const trainingRounds = [...(training.training_rounds || [])].sort(
+    (a: any, b: any) => Number(a.round_number || 0) - Number(b.round_number || 0)
+  );
+  const currentRound =
+    trainingRounds.find((round: any) => round.status !== "completed") ||
+    trainingRounds[0];
 
   const allTrainingArrows =
-    training.training_rounds?.flatMap((round: any) =>
-      round.series?.flatMap((serie: any) => serie.arrows || []) || []
-    ) || [];
+    trainingRounds
+      .filter((round: any) => round.scoring_enabled !== false)
+      .flatMap((round: any) =>
+        round.series?.flatMap((serie: any) => serie.arrows || []) || []
+      ) || [];
 
   const totalSeries =
-    training.training_rounds?.reduce(
-      (sum: number, round: any) => sum + (round.series?.length || 0),
+    trainingRounds.reduce(
+      (sum: number, round: any) =>
+        round.scoring_enabled === false
+          ? sum
+          : sum + (round.series?.length || 0),
       0
     ) || 0;
 
-  const plannedSeries = currentRound?.total_series || 0;
+  const plannedSeries =
+    trainingRounds.reduce(
+      (sum: number, round: any) =>
+        round.scoring_enabled === false
+          ? sum
+          : sum + Number(round.total_series || 0),
+      0
+    ) || 0;
   const arrowsPerSeries = currentRound?.arrows_per_series || 6;
-  const plannedArrows = plannedSeries * arrowsPerSeries;
+  const plannedArrows =
+    trainingRounds.reduce(
+      (sum: number, round: any) =>
+        round.scoring_enabled === false
+          ? sum
+          : sum +
+            Number(round.total_series || 0) *
+              Number(round.arrows_per_series || 0),
+      0
+    ) || 0;
   const totalArrows = allTrainingArrows.length;
   const totalScore = training.total_score || 0;
   const averageArrow =
@@ -185,6 +213,8 @@ export default async function TrainingDetailPage({
     (arrow: any) => Number(arrow.score || 0) === 0
   ).length;
   const isCompleted = training.status === "completed";
+  const canDeleteTraining =
+    currentUser?.role === "admin" || currentUser?.role === "coach";
   const athleteName = getRelationName(training.athlete_profiles?.users);
 
   return (
@@ -203,16 +233,22 @@ export default async function TrainingDetailPage({
             Entrenamientos
           </Link>
 
-          <span
-            className={`inline-flex w-fit items-center gap-2 rounded-2xl px-4 py-3 text-sm font-black uppercase ${
-              isCompleted
-                ? "bg-emerald-400 text-slate-950"
-                : "bg-yellow-300 text-slate-950"
-            }`}
-          >
-            <CheckCircle2 size={17} />
-            {isCompleted ? "Finalizado" : "En progreso"}
-          </span>
+          <div className="flex flex-wrap items-center gap-3">
+            {canDeleteTraining && (
+              <TrainingDeleteButton trainingId={training.id} />
+            )}
+
+            <span
+              className={`inline-flex w-fit items-center gap-2 rounded-2xl px-4 py-3 text-sm font-black uppercase ${
+                isCompleted
+                  ? "bg-emerald-400 text-slate-950"
+                  : "bg-yellow-300 text-slate-950"
+              }`}
+            >
+              <CheckCircle2 size={17} />
+              {isCompleted ? "Finalizado" : "En progreso"}
+            </span>
+          </div>
         </div>
 
         <section className="tal-hero-panel p-7 md:p-9">
@@ -296,7 +332,7 @@ export default async function TrainingDetailPage({
           </div>
         </section>
 
-        <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <section className="grid grid-cols-1 gap-5 lg:grid-cols-3">
           <InfoPanel
             icon={Target}
             title="Objetivo"
@@ -307,35 +343,122 @@ export default async function TrainingDetailPage({
             title="Notas del entrenador"
             value={training.coach_notes || "Sin notas registradas."}
           />
+          <InfoPanel
+            icon={NotebookText}
+            title="Notas del atleta"
+            value={training.athlete_notes || "Sin notas registradas."}
+          />
         </section>
 
         <section className="tal-chart-card">
           <div className="mb-5 border-b border-white/10 pb-5">
             <p className="text-xs font-black uppercase tracking-[0.35em] text-cyan-300">
-              TAL Scoring Input
+              TAL Round Workflow
             </p>
             <h3 className="mt-2 text-3xl font-black tal-text-glow">
-              Registrar serie
+              Rondas del entrenamiento
             </h3>
             <p className="mt-1 text-sm font-medium text-slate-500">
-              Captura score e impacto por flecha con la configuracion definida
-              al crear la sesion.
+              Cada ronda se finaliza por separado. Si la ronda no registra
+              puntos, solo solicita retroalimentacion.
             </p>
           </div>
 
-          {isCompleted ? (
-            <p className="rounded-2xl border border-white/10 bg-slate-950/80 p-4 font-medium text-slate-400">
-              Este entrenamiento ya fue finalizado. No se pueden agregar mas
-              series.
-            </p>
-          ) : (
-            <TrainingSeriesCapture
-              trainingId={training.id}
-              distanceMeters={currentRound?.distance_meters || 0}
-              targetSizeCm={currentRound?.target_size_cm || 0}
-              existingCoachNotes={training.coach_notes}
-            />
-          )}
+          <div className="space-y-5">
+            {trainingRounds.map((round: any) => {
+              const completedSeries = round.series?.length || 0;
+              const plannedRoundSeries = Number(round.total_series || 0);
+              const roundCompleted = round.status === "completed";
+              const scoringEnabled = round.scoring_enabled !== false;
+
+              return (
+                <div
+                  key={round.id}
+                  className="overflow-hidden rounded-[2rem] border border-cyan-400/10 bg-slate-950/70"
+                >
+                  <div className="flex flex-col gap-4 border-b border-white/10 bg-white/[0.03] px-5 py-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-300">
+                        Ronda #{round.round_number || 1}
+                      </p>
+                      <h4 className="mt-1 text-xl font-black text-white">
+                        {round.distance_meters} m / Diana {round.target_size_cm || "-"} cm
+                      </h4>
+                      <p className="mt-2 max-w-2xl text-sm font-medium text-slate-400">
+                        {round.objective || "Sin objetivo específico para esta ronda."}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 text-xs font-black">
+                      <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-cyan-200">
+                        {round.session_type || training.session_type || "Entrenamiento"}
+                      </span>
+                      <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-slate-300">
+                        {completedSeries}/{plannedRoundSeries || "-"} series
+                      </span>
+                      <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-slate-300">
+                        {round.arrows_per_series || 6} flechas
+                      </span>
+                      <span
+                        className={`rounded-full px-3 py-1 ${
+                          scoringEnabled
+                            ? "bg-cyan-400/15 text-cyan-200"
+                            : "bg-violet-400/15 text-violet-200"
+                        }`}
+                      >
+                        {scoringEnabled ? "Con puntos" : "Solo feedback"}
+                      </span>
+                      <span
+                        className={`rounded-full px-3 py-1 ${
+                          roundCompleted
+                            ? "bg-emerald-400 text-slate-950"
+                            : "bg-yellow-300 text-slate-950"
+                        }`}
+                      >
+                        {roundCompleted ? "Finalizada" : "Activa"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-5">
+                    {roundCompleted ? (
+                      <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4">
+                        <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">
+                          Retroalimentacion
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-slate-300">
+                          {round.feedback || "Ronda finalizada sin retroalimentacion visible."}
+                        </p>
+                      </div>
+                    ) : scoringEnabled ? (
+                      <>
+                        <TrainingSeriesCapture
+                          trainingId={training.id}
+                          roundId={round.id}
+                          distanceMeters={round.distance_meters || 0}
+                          targetSizeCm={round.target_size_cm || 0}
+                          arrowsPerSeries={round.arrows_per_series || 6}
+                        />
+                        <TrainingRoundFinalizeForm
+                          roundId={round.id}
+                          scoringEnabled
+                          completedSeries={completedSeries}
+                          plannedSeries={plannedRoundSeries}
+                        />
+                      </>
+                    ) : (
+                      <TrainingRoundFinalizeForm
+                        roundId={round.id}
+                        scoringEnabled={false}
+                        completedSeries={completedSeries}
+                        plannedSeries={plannedRoundSeries}
+                      />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </section>
 
         <section className="tal-chart-card">
@@ -358,13 +481,19 @@ export default async function TrainingDetailPage({
                 Rondas
               </p>
               <p className="text-4xl font-black text-white">
-                {training.training_rounds?.length || 0}
+                {trainingRounds.length || 0}
               </p>
             </div>
           </div>
 
           <div className="space-y-6">
-            {training.training_rounds?.map((round: any) => (
+            {trainingRounds.map((round: any) => {
+              const roundArrowNumbers = Array.from(
+                { length: Math.max(1, Number(round.arrows_per_series || 6)) },
+                (_, index) => index
+              );
+
+              return (
               <div key={round.id} className="overflow-hidden rounded-[2rem] border border-cyan-400/10 bg-slate-950/70">
                 <div className="flex flex-col gap-4 border-b border-white/10 bg-cyan-400/10 px-5 py-4 md:flex-row md:items-center md:justify-between">
                   <div>
@@ -374,9 +503,15 @@ export default async function TrainingDetailPage({
                     <h4 className="mt-1 text-xl font-black text-white">
                       {round.distance_meters} m / Diana {round.target_size_cm || "-"} cm
                     </h4>
+                    <p className="mt-2 max-w-2xl text-sm font-medium text-slate-400">
+                      {round.objective || "Sin objetivo específico."}
+                    </p>
                   </div>
 
                   <div className="flex flex-wrap gap-2 text-xs font-black text-slate-300">
+                    <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-cyan-200">
+                      {round.session_type || training.session_type || "Entrenamiento"}
+                    </span>
                     <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1">
                       {round.series?.length || 0}/{round.total_series || "-"} series
                     </span>
@@ -391,12 +526,11 @@ export default async function TrainingDetailPage({
                     <thead>
                       <tr className="border-b border-white/10 bg-white/[0.035] text-xs font-black uppercase tracking-[0.16em] text-slate-400">
                         <th className="px-4 py-4 text-left">Serie</th>
-                        <th className="px-3 py-4 text-center">F1</th>
-                        <th className="px-3 py-4 text-center">F2</th>
-                        <th className="px-3 py-4 text-center">F3</th>
-                        <th className="px-3 py-4 text-center">F4</th>
-                        <th className="px-3 py-4 text-center">F5</th>
-                        <th className="px-3 py-4 text-center">F6</th>
+                        {roundArrowNumbers.map((index) => (
+                          <th key={index} className="px-3 py-4 text-center">
+                            F{index + 1}
+                          </th>
+                        ))}
                         <th className="px-4 py-4 text-center">X</th>
                         <th className="px-4 py-4 text-center">M</th>
                         <th className="px-4 py-4 text-center">Total</th>
@@ -426,7 +560,7 @@ export default async function TrainingDetailPage({
                               </span>
                             </td>
 
-                            {[0, 1, 2, 3, 4, 5].map((index) => {
+                            {roundArrowNumbers.map((index) => {
                               const display = arrowDisplay(arrows[index]);
                               const isX = display === "X";
                               const isMiss = display === "M";
@@ -469,7 +603,7 @@ export default async function TrainingDetailPage({
 
                       {(!round.series || round.series.length === 0) && (
                         <tr>
-                          <td colSpan={12} className="px-4 py-8 text-center text-slate-500">
+                          <td colSpan={roundArrowNumbers.length + 6} className="px-4 py-8 text-center text-slate-500">
                             Aun no hay series registradas para esta ronda.
                           </td>
                         </tr>
@@ -478,10 +612,10 @@ export default async function TrainingDetailPage({
                   </table>
                 </div>
               </div>
-            ))}
+              );
+            })}
 
-            {(!training.training_rounds ||
-              training.training_rounds.length === 0) && (
+            {trainingRounds.length === 0 && (
               <div className="rounded-[2rem] border border-dashed border-white/10 bg-white/[0.03] p-10 text-center">
                 <p className="text-lg font-bold text-slate-400">
                   Aun no hay series registradas.

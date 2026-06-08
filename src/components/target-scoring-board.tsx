@@ -33,13 +33,17 @@ function calculateScore(x: number, y: number) {
   return "M";
 }
 
-export function TargetScoringBoard() {
+export function TargetScoringBoard({ arrowCount = 6 }: { arrowCount?: number }) {
+  const arrowNumbers = Array.from(
+    { length: Math.max(1, Math.min(arrowCount, 12)) },
+    (_, index) => index + 1
+  );
   const [positions, setPositions] = useState<Record<number, ArrowPosition>>({});
   const [scores, setScores] = useState<Record<number, string>>({});
   const [activeArrow, setActiveArrow] = useState(1);
 
   function handleTargetClick(e: React.MouseEvent<HTMLDivElement>) {
-    if (activeArrow > 6) return;
+    if (activeArrow > arrowNumbers.length) return;
 
     const rect = e.currentTarget.getBoundingClientRect();
 
@@ -64,7 +68,7 @@ export function TargetScoringBoard() {
       [activeArrow]: score,
     }));
 
-    if (activeArrow < 6) {
+    if (activeArrow < arrowNumbers.length) {
       setActiveArrow(activeArrow + 1);
     }
   }
@@ -95,7 +99,7 @@ export function TargetScoringBoard() {
 
   return (
     <div className="w-full">
-      {[1, 2, 3, 4, 5, 6].map((n) => (
+      {arrowNumbers.map((n) => (
         <div key={n}>
           <input
             type="hidden"
@@ -136,7 +140,7 @@ export function TargetScoringBoard() {
                 Impactos
               </p>
               <p className="mt-1 text-2xl font-black text-white">
-                {registeredCount}/6
+                {registeredCount}/{arrowNumbers.length}
               </p>
             </div>
 
@@ -162,7 +166,7 @@ export function TargetScoringBoard() {
         </div>
 
         <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-          {[1, 2, 3, 4, 5, 6].map((n) => (
+          {arrowNumbers.map((n) => (
             <div
               key={n}
               className={`rounded-2xl border p-3 transition ${

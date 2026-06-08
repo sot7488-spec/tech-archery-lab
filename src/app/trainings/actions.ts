@@ -1,7 +1,65 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+
+function getPositiveNumber(value: FormDataEntryValue | null, fallback = 0) {
+  const numberValue = Number(value || fallback);
+  return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : fallback;
+}
+
+function getTrainingRoundsPayload(formData: FormData, trainingId: string) {
+  const roundsCount = getPositiveNumber(formData.get("rounds_count"), 0);
+
+  if (!roundsCount) {
+    return [
+      {
+        training_session_id: trainingId,
+        round_number: 1,
+        distance_meters: getPositiveNumber(formData.get("distance_meters")),
+        target_size_cm: getPositiveNumber(formData.get("target_size_cm")),
+        total_series: getPositiveNumber(formData.get("total_series")),
+        arrows_per_series: 6,
+        scoring_enabled: true,
+        session_type: String(formData.get("session_type") || "") || null,
+        objective: String(formData.get("objective") || "") || null,
+        status: "active",
+      },
+    ];
+  }
+
+  return Array.from({ length: roundsCount }, (_, index) => {
+    const roundNumber = index + 1;
+
+    return {
+      training_session_id: trainingId,
+      round_number: roundNumber,
+      distance_meters: getPositiveNumber(
+        formData.get(`round_distance_meters_${roundNumber}`)
+      ),
+      target_size_cm: getPositiveNumber(
+        formData.get(`round_target_size_cm_${roundNumber}`)
+      ),
+      total_series: getPositiveNumber(
+        formData.get(`round_total_series_${roundNumber}`)
+      ),
+      arrows_per_series: getPositiveNumber(
+        formData.get(`round_arrows_per_series_${roundNumber}`),
+        6
+      ),
+      scoring_enabled:
+        String(formData.get(`round_scoring_enabled_${roundNumber}`) || "") ===
+        "on",
+      session_type:
+        String(formData.get(`round_session_type_${roundNumber}`) || "") || null,
+      objective:
+        String(formData.get(`round_objective_${roundNumber}`) || "") || null,
+      notes: String(formData.get(`round_notes_${roundNumber}`) || "") || null,
+      status: "active",
+    };
+  });
+}
 
 export async function createTraining(formData: FormData) {
   const supabase = await createClient();
@@ -46,11 +104,7 @@ export async function createTraining(formData: FormData) {
   const objective = String(formData.get("objective") || "");
   const coach_notes = String(formData.get("coach_notes") || "");
 
-  const distance_meters = Number(formData.get("distance_meters") || 0);
-  const target_size_cm = Number(formData.get("target_size_cm") || 0);
-  const total_series = Number(formData.get("total_series") || 0);
-
-  if (!athlete_id || !training_date || !distance_meters || !total_series) {
+  if (!athlete_id || !training_date) {
     throw new Error("Faltan datos obligatorios para crear el entrenamiento");
   }
 
@@ -101,14 +155,22 @@ export async function createTraining(formData: FormData) {
     throw new Error("Error creando entrenamiento");
   }
 
-  const { error: roundError } = await supabase.from("training_rounds").insert({
-    training_session_id: training.id,
-    round_number: 1,
-    distance_meters,
-    target_size_cm,
-    total_series,
-    arrows_per_series: 6,
-  });
+  const rounds = getTrainingRoundsPayload(formData, training.id);
+  const invalidRound = rounds.find(
+    (round) =>
+      !round.distance_meters ||
+      !round.target_size_cm ||
+      !round.total_series ||
+      !round.arrows_per_series
+  );
+
+  if (invalidRound) {
+    throw new Error("Completa distancia, diana, series y flechas de cada ronda.");
+  }
+
+  const { error: roundError } = await supabase
+    .from("training_rounds")
+    .insert(rounds);
 
   if (roundError) {
     console.error(roundError);
@@ -116,4 +178,54 @@ export async function createTraining(formData: FormData) {
   }
 
   revalidatePath("/trainings");
+}
+
+export async function deleteTraining(formData: FormData) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("No autenticado.");
+
+  const { data: currentUser } = await supabase
+    .from("users")
+    .select("role, club_id")
+    .eq("id", user.id)
+    .single();
+
+  if (currentUser?.role !== "admin" && currentUser?.role !== "coach") {
+    throw new Error("No tienes permiso para eliminar entrenamientos.");
+  }
+
+  const trainingId = String(formData.get("training_id") || "");
+  const redirectTo = String(formData.get("redirect_to") || "/trainings");
+
+  if (!trainingId) throw new Error("Falta el entrenamiento.");
+
+  const { data: training } = await supabase
+    .from("training_sessions")
+    .select("id, club_id")
+    .eq("id", trainingId)
+    .single();
+
+  if (!training) throw new Error("Entrenamiento no encontrado.");
+
+  if (
+    currentUser.role === "coach" &&
+    training.club_id !== currentUser.club_id
+  ) {
+    throw new Error("Solo puedes eliminar entrenamientos de atletas de tu club.");
+  }
+
+  const { error } = await supabase.rpc("delete_training_session", {
+    p_training_id: trainingId,
+  });
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/trainings");
+  revalidatePath(`/trainings/${trainingId}`);
+  redirect(redirectTo);
 }

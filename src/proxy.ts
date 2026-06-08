@@ -55,6 +55,20 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
+  const trainingDetailMatch = pathname.match(/^\/trainings\/([^/]+)$/);
+
+  if (trainingDetailMatch) {
+    const { data: training } = await supabase
+      .from("training_sessions")
+      .select("athlete_id")
+      .eq("id", trainingDetailMatch[1])
+      .maybeSingle();
+
+    if (training?.athlete_id === athlete.id) {
+      return response;
+    }
+  }
+
   const exactAllowedAthleteRoutes = ["/agenda", "/analytics"];
 
   const allowedAthleteRoutes = [

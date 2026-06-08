@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import TrainingCreateModal from "./TrainingCreateModal";
+import TrainingDeleteButton from "./TrainingDeleteButton";
 
 type SearchParams = {
   athlete_id?: string;
@@ -371,10 +372,13 @@ export default async function TrainingsPage({
             const athleteName = getRelatedName(training.athlete_profiles?.users);
 
             return (
-              <Link
+              <article
                 key={training.id}
+                className="relative"
+              >
+              <Link
                 href={`/trainings/${training.id}`}
-                className="group block overflow-hidden rounded-[2rem] border border-cyan-400/10 bg-white/[0.045] p-5 shadow-[0_0_42px_rgba(0,0,0,0.30)] backdrop-blur-2xl transition hover:-translate-y-0.5 hover:border-cyan-300/30 hover:bg-cyan-400/[0.06] hover:shadow-[0_0_60px_rgba(34,211,238,0.12)]"
+                className="group block overflow-hidden rounded-[2rem] border border-cyan-400/10 bg-white/[0.045] p-5 shadow-[0_0_42px_rgba(0,0,0,0.30)] backdrop-blur-2xl transition hover:-translate-y-0.5 hover:border-cyan-300/30 hover:bg-cyan-400/[0.06] hover:shadow-[0_0_60px_rgba(34,211,238,0.12)] xl:pr-36"
               >
                 <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr_0.55fr_1.6fr_auto] xl:items-center">
                   <div>
@@ -421,6 +425,16 @@ export default async function TrainingsPage({
                   </div>
                 </div>
               </Link>
+
+              {!isAthlete && (
+                <div className="mt-3 flex justify-end xl:absolute xl:right-5 xl:top-1/2 xl:mt-0 xl:-translate-y-1/2">
+                  <TrainingDeleteButton
+                    trainingId={training.id}
+                    redirectTo="/trainings"
+                  />
+                </div>
+              )}
+              </article>
             );
           })}
 

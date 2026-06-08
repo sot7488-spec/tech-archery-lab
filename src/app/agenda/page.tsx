@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   ChevronDown,
   HelpCircle,
+  ListChecks,
   Target,
   Trophy,
   Users,
@@ -137,6 +138,12 @@ function responseStyle(response: string | null | undefined) {
   };
 }
 
+function sortRounds(rounds: any[] | null | undefined) {
+  return [...(rounds || [])].sort(
+    (a, b) => Number(a.round_number || 0) - Number(b.round_number || 0)
+  );
+}
+
 export default async function AgendaPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const supabase = await createClient();
@@ -229,9 +236,16 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         )
       ),
       training_rounds (
+        id,
+        round_number,
         distance_meters,
         target_size_cm,
-        total_series
+        total_series,
+        arrows_per_series,
+        scoring_enabled,
+        session_type,
+        objective,
+        status
       )
     `)
     .gte("training_date", toDateInputValue(weekStart))
@@ -414,7 +428,11 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                         training.athlete_response_status || "pending"
                       );
                       const ResponseIcon = response.icon;
-                      const round = training.training_rounds?.[0] || {};
+                      const rounds = sortRounds(training.training_rounds);
+                      const primaryRound = rounds[0] || {};
+                      const primaryStyle = typeStyle(
+                        primaryRound.session_type || training.session_type
+                      );
 
                       return (
                         <div
@@ -433,12 +451,12 @@ export default async function AgendaPage({ searchParams }: PageProps) {
 
                               <p className="inline-flex min-w-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-black uppercase tracking-[0.12em]">
                                 <Activity size={14} className="shrink-0" />
-                                <span className="truncate">{style.label}</span>
+                                <span className="truncate">{primaryStyle.label}</span>
                               </p>
 
                               <p className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/30 px-3 py-2 text-sm font-black text-white">
-                                <Target size={15} className="shrink-0 text-cyan-200" />
-                                {round.distance_meters || "-"} m
+                                <ListChecks size={15} className="shrink-0 text-cyan-200" />
+                                {rounds.length} ronda{rounds.length === 1 ? "" : "s"}
                               </p>
 
                               <p className="line-clamp-2 min-w-0 rounded-xl border border-white/10 bg-slate-950/25 px-3 py-2 text-sm font-bold text-slate-300">
@@ -451,6 +469,69 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                                   {response.label}
                                 </span>
                               </div>
+                            </div>
+
+                            <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                              {rounds.map((round) => {
+                                const roundStyle = typeStyle(
+                                  round.session_type || training.session_type
+                                );
+                                const scoringEnabled =
+                                  round.scoring_enabled !== false;
+
+                                return (
+                                  <div
+                                    key={round.id || round.round_number}
+                                    className="rounded-2xl border border-white/10 bg-slate-950/35 p-3"
+                                  >
+                                    <div className="mb-2 flex items-start justify-between gap-2">
+                                      <div>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
+                                          Ronda {round.round_number || 1}
+                                        </p>
+                                        <p className={`mt-1 inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-[0.1em] ${roundStyle.accent}`}>
+                                          <span className={`h-2 w-2 rounded-full ${roundStyle.dot}`} />
+                                          {roundStyle.label}
+                                        </p>
+                                      </div>
+
+                                      <span
+                                        className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${
+                                          scoringEnabled
+                                            ? "bg-cyan-400/15 text-cyan-200"
+                                            : "bg-violet-400/15 text-violet-200"
+                                        }`}
+                                      >
+                                        {scoringEnabled ? "Puntos" : "Feedback"}
+                                      </span>
+                                    </div>
+
+                                    <div className="grid grid-cols-3 gap-2 text-xs font-black text-white">
+                                      <span className="rounded-xl border border-white/10 bg-white/[0.04] px-2 py-2">
+                                        {round.distance_meters || "-"} m
+                                      </span>
+                                      <span className="rounded-xl border border-white/10 bg-white/[0.04] px-2 py-2">
+                                        {round.total_series || "-"} series
+                                      </span>
+                                      <span className="rounded-xl border border-white/10 bg-white/[0.04] px-2 py-2">
+                                        {round.arrows_per_series || 6} fl.
+                                      </span>
+                                    </div>
+
+                                    <p className="mt-2 line-clamp-2 text-xs font-bold leading-5 text-slate-300">
+                                      {round.objective ||
+                                        training.objective ||
+                                        "Sin objetivo de ronda"}
+                                    </p>
+                                  </div>
+                                );
+                              })}
+
+                              {rounds.length === 0 && (
+                                <div className="rounded-2xl border border-dashed border-white/10 bg-slate-950/35 p-3 text-xs font-bold text-slate-400">
+                                  Sin rondas configuradas
+                                </div>
+                              )}
                             </div>
                           </Link>
 
