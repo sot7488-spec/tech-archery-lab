@@ -28,6 +28,11 @@ export default function AthleteManageModal({ athlete, clubs }: Props) {
     [clubs, athlete.club_id]
   );
 
+  async function handleManageAthlete(formData: FormData) {
+    await manageAthleteWithStrategy(formData);
+    setOpen(false);
+  }
+
   return (
     <>
       <button
@@ -69,7 +74,7 @@ export default function AthleteManageModal({ athlete, clubs }: Props) {
               </p>
             </div>
 
-            <form action={manageAthleteWithStrategy} className="space-y-5">
+            <form action={handleManageAthlete} className="space-y-5">
               <input type="hidden" name="athlete_id" value={athlete.id} />
 
               <div className="grid gap-3 md:grid-cols-2">

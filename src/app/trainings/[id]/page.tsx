@@ -123,6 +123,9 @@ export default async function TrainingDetailPage({
             *
           )
         )
+      ),
+      training_routine_blocks (
+        *
       )
     `)
     .eq("id", id)
@@ -164,6 +167,10 @@ export default async function TrainingDetailPage({
 
   const trainingRounds = [...(training.training_rounds || [])].sort(
     (a: any, b: any) => Number(a.round_number || 0) - Number(b.round_number || 0)
+  );
+  const routineBlocks = [...(training.training_routine_blocks || [])].sort(
+    (a: any, b: any) =>
+      Number(a.routine_number || 0) - Number(b.routine_number || 0)
   );
   const currentRound =
     trainingRounds.find((round: any) => round.status !== "completed") ||
@@ -460,6 +467,82 @@ export default async function TrainingDetailPage({
             })}
           </div>
         </section>
+
+        {routineBlocks.length > 0 && (
+          <section className="tal-chart-card">
+            <div className="mb-5 border-b border-white/10 pb-5">
+              <p className="text-xs font-black uppercase tracking-[0.35em] text-emerald-300">
+                TAL Conditioning Blocks
+              </p>
+              <h3 className="mt-2 text-3xl font-black tal-text-glow">
+                Rutinas del entrenamiento
+              </h3>
+              <p className="mt-1 text-sm font-medium text-slate-500">
+                Bloques de fuerza o SPT programados como parte de esta sesion.
+              </p>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              {routineBlocks.map((routine: any) => {
+                const isSpt = routine.routine_type === "spt";
+
+                return (
+                  <div
+                    key={routine.id}
+                    className="rounded-[1.8rem] border border-emerald-300/15 bg-emerald-400/[0.045] p-5"
+                  >
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.24em] text-emerald-300">
+                          Rutina #{routine.routine_number || 1}
+                        </p>
+                        <h4 className="mt-2 text-xl font-black text-white">
+                          {routine.title ||
+                            (isSpt ? "Rutina SPT" : "Rutina de fuerza")}
+                        </h4>
+                        <p className="mt-2 text-sm leading-6 text-slate-400">
+                          {routine.objective || "Sin objetivo especifico."}
+                        </p>
+                      </div>
+
+                      <span className="w-fit rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-emerald-200">
+                        {isSpt ? "SPT" : "Fuerza"}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-black text-white md:grid-cols-4">
+                      <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                        {routine.focus_area || "Enfoque"}
+                      </span>
+                      <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                        {routine.intensity || "Intensidad"}
+                      </span>
+                      <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                        {routine.duration_minutes
+                          ? `${routine.duration_minutes} min`
+                          : "Sin tiempo"}
+                      </span>
+                      <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                        {isSpt
+                          ? routine.spt_volume || "Volumen SPT"
+                          : `${routine.sets || "-"} x ${routine.reps || "-"}`}
+                      </span>
+                    </div>
+
+                    <p className="mt-4 text-sm font-bold leading-6 text-slate-300">
+                      {isSpt
+                        ? routine.spt_drill || "Drill SPT sin detalle."
+                        : routine.exercises || "Ejercicios sin detalle."}
+                    </p>
+                    <p className="mt-2 text-xs font-bold leading-5 text-slate-500">
+                      {routine.technical_cue || routine.tempo || "Sin cue tecnico."}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         <section className="tal-chart-card">
           <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

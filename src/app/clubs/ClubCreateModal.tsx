@@ -7,6 +7,11 @@ import { createClub } from "./actions";
 export default function ClubCreateModal() {
   const [open, setOpen] = useState(false);
 
+  async function handleCreateClub(formData: FormData) {
+    await createClub(formData);
+    setOpen(false);
+  }
+
   return (
     <>
       <button
@@ -39,7 +44,7 @@ export default function ClubCreateModal() {
               <h2 className="mt-2 text-3xl font-black">Crear club</h2>
             </div>
 
-            <form action={createClub} className="space-y-5">
+            <form action={handleCreateClub} className="space-y-5">
               <input
                 name="name"
                 required

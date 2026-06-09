@@ -23,6 +23,11 @@ export default function ClubDeleteModal({ athleteCount, club, clubs }: Props) {
     [clubs, club.id]
   );
 
+  async function handleDeleteClub(formData: FormData) {
+    await deleteClubWithStrategy(formData);
+    setOpen(false);
+  }
+
   return (
     <>
       <button
@@ -62,7 +67,7 @@ export default function ClubDeleteModal({ athleteCount, club, clubs }: Props) {
               </p>
             </div>
 
-            <form action={deleteClubWithStrategy} className="space-y-5">
+            <form action={handleDeleteClub} className="space-y-5">
               <input type="hidden" name="club_id" value={club.id} />
 
               <div className="grid gap-3 md:grid-cols-2">

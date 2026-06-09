@@ -64,6 +64,11 @@ export default function TuningCreateModal({
     [equipmentProfiles, selectedAthleteId]
   );
 
+  async function handleCreateTuningLog(formData: FormData) {
+    await createTuningLog(formData);
+    setOpen(false);
+  }
+
   return (
     <>
       <button
@@ -116,7 +121,7 @@ export default function TuningCreateModal({
             </div>
 
             <form
-              action={createTuningLog}
+              action={handleCreateTuningLog}
               className="relative z-10 flex-1 space-y-3 overflow-y-auto px-5 py-4 pr-3 [scrollbar-color:rgba(34,211,238,0.65)_rgba(15,23,42,0.9)] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-400/60 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-900"
             >
               <section className={sectionClass}>

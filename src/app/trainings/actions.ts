@@ -61,6 +61,61 @@ function getTrainingRoundsPayload(formData: FormData, trainingId: string) {
   });
 }
 
+function nullableString(value: FormDataEntryValue | null) {
+  const text = String(value || "").trim();
+  return text || null;
+}
+
+function nullablePositiveNumber(value: FormDataEntryValue | null) {
+  const numberValue = Number(value || 0);
+  return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : null;
+}
+
+function getTrainingRoutineBlocksPayload(formData: FormData, trainingId: string) {
+  const routinesCount = getPositiveNumber(formData.get("routines_count"), 0);
+
+  if (!routinesCount) return [];
+
+  return Array.from({ length: routinesCount }, (_, index) => {
+    const routineNumber = index + 1;
+    const routineType =
+      String(formData.get(`routine_type_${routineNumber}`) || "strength") ===
+      "spt"
+        ? "spt"
+        : "strength";
+
+    return {
+      training_session_id: trainingId,
+      routine_number: routineNumber,
+      routine_type: routineType,
+      title: nullableString(formData.get(`routine_title_${routineNumber}`)),
+      focus_area: nullableString(formData.get(`routine_focus_area_${routineNumber}`)),
+      objective: nullableString(formData.get(`routine_objective_${routineNumber}`)),
+      duration_minutes: nullablePositiveNumber(
+        formData.get(`routine_duration_minutes_${routineNumber}`)
+      ),
+      intensity: nullableString(formData.get(`routine_intensity_${routineNumber}`)),
+      exercises: nullableString(formData.get(`routine_exercises_${routineNumber}`)),
+      sets: nullableString(formData.get(`routine_sets_${routineNumber}`)),
+      reps: nullableString(formData.get(`routine_reps_${routineNumber}`)),
+      load: nullableString(formData.get(`routine_load_${routineNumber}`)),
+      rest_seconds: nullablePositiveNumber(
+        formData.get(`routine_rest_seconds_${routineNumber}`)
+      ),
+      tempo: nullableString(formData.get(`routine_tempo_${routineNumber}`)),
+      technical_cue: nullableString(
+        formData.get(`routine_technical_cue_${routineNumber}`)
+      ),
+      spt_drill: nullableString(formData.get(`routine_spt_drill_${routineNumber}`)),
+      spt_volume: nullableString(formData.get(`routine_spt_volume_${routineNumber}`)),
+      bow_load: nullableString(formData.get(`routine_bow_load_${routineNumber}`)),
+      hold_seconds: nullablePositiveNumber(
+        formData.get(`routine_hold_seconds_${routineNumber}`)
+      ),
+    };
+  });
+}
+
 export async function createTraining(formData: FormData) {
   const supabase = await createClient();
 
@@ -175,6 +230,21 @@ export async function createTraining(formData: FormData) {
   if (roundError) {
     console.error(roundError);
     throw new Error("Error creando configuración de ronda");
+  }
+
+  const routineBlocks = getTrainingRoutineBlocksPayload(formData, training.id);
+
+  if (routineBlocks.length > 0) {
+    const { error: routineError } = await supabase
+      .from("training_routine_blocks")
+      .insert(routineBlocks);
+
+    if (routineError) {
+      console.error(routineError);
+      throw new Error(
+        routineError.message || "Error creando rutinas del entrenamiento"
+      );
+    }
   }
 
   revalidatePath("/trainings");

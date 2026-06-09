@@ -21,7 +21,15 @@ export default function AppShell({
     <div className="flex min-h-screen bg-slate-950">
       {!hideSidebar && <Sidebar />}
 
-      <main className="flex-1 overflow-hidden">{children}</main>
+      <main
+        className={
+          hideSidebar
+            ? "flex-1 overflow-hidden"
+            : "flex-1 overflow-hidden pt-[74px] lg:pt-0"
+        }
+      >
+        {children}
+      </main>
     </div>
   );
 }

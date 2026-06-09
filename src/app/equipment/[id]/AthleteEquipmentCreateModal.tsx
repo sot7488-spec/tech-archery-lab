@@ -36,6 +36,11 @@ export default function AthleteEquipmentCreateModal({
 }: Props) {
   const [open, setOpen] = useState(false);
 
+  async function handleCreateEquipment(formData: FormData) {
+    await createEquipment(formData);
+    setOpen(false);
+  }
+
   return (
     <>
       <button
@@ -93,7 +98,7 @@ export default function AthleteEquipmentCreateModal({
             </div>
 
             <form
-              action={createEquipment}
+              action={handleCreateEquipment}
               className="
                 relative z-10 flex-1 space-y-3 overflow-y-auto px-5 py-4 pr-3
                 [scrollbar-width:thin]

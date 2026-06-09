@@ -144,6 +144,12 @@ function sortRounds(rounds: any[] | null | undefined) {
   );
 }
 
+function sortRoutineBlocks(routines: any[] | null | undefined) {
+  return [...(routines || [])].sort(
+    (a, b) => Number(a.routine_number || 0) - Number(b.routine_number || 0)
+  );
+}
+
 export default async function AgendaPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const supabase = await createClient();
@@ -246,6 +252,24 @@ export default async function AgendaPage({ searchParams }: PageProps) {
         session_type,
         objective,
         status
+      ),
+      training_routine_blocks (
+        id,
+        routine_number,
+        routine_type,
+        title,
+        focus_area,
+        objective,
+        duration_minutes,
+        intensity,
+        exercises,
+        sets,
+        reps,
+        load,
+        spt_drill,
+        spt_volume,
+        bow_load,
+        hold_seconds
       )
     `)
     .gte("training_date", toDateInputValue(weekStart))
@@ -429,6 +453,9 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                       );
                       const ResponseIcon = response.icon;
                       const rounds = sortRounds(training.training_rounds);
+                      const routineBlocks = sortRoutineBlocks(
+                        training.training_routine_blocks
+                      );
                       const primaryRound = rounds[0] || {};
                       const primaryStyle = typeStyle(
                         primaryRound.session_type || training.session_type
@@ -533,6 +560,59 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                                 </div>
                               )}
                             </div>
+
+                            {routineBlocks.length > 0 && (
+                              <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                                {routineBlocks.map((routine) => {
+                                  const isSpt = routine.routine_type === "spt";
+
+                                  return (
+                                    <div
+                                      key={routine.id || routine.routine_number}
+                                      className="rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.045] p-3"
+                                    >
+                                      <div className="mb-2 flex items-start justify-between gap-2">
+                                        <div>
+                                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">
+                                            Rutina {routine.routine_number || 1}
+                                          </p>
+                                          <p className="mt-1 text-sm font-black text-white">
+                                            {routine.title ||
+                                              (isSpt ? "SPT" : "Fuerza")}
+                                          </p>
+                                        </div>
+                                        <span className="rounded-full bg-emerald-400/15 px-2 py-1 text-[10px] font-black uppercase text-emerald-200">
+                                          {isSpt ? "SPT" : "Fuerza"}
+                                        </span>
+                                      </div>
+
+                                      <div className="grid grid-cols-3 gap-2 text-xs font-black text-white">
+                                        <span className="rounded-xl border border-white/10 bg-white/[0.04] px-2 py-2">
+                                          {routine.focus_area || "Enfoque"}
+                                        </span>
+                                        <span className="rounded-xl border border-white/10 bg-white/[0.04] px-2 py-2">
+                                          {routine.duration_minutes
+                                            ? `${routine.duration_minutes} min`
+                                            : "Min"}
+                                        </span>
+                                        <span className="rounded-xl border border-white/10 bg-white/[0.04] px-2 py-2">
+                                          {isSpt
+                                            ? routine.spt_volume || "Vol."
+                                            : `${routine.sets || "-"}x${routine.reps || "-"}`}
+                                        </span>
+                                      </div>
+
+                                      <p className="mt-2 line-clamp-2 text-xs font-bold leading-5 text-slate-300">
+                                        {routine.objective ||
+                                          routine.exercises ||
+                                          routine.spt_drill ||
+                                          "Sin objetivo de rutina"}
+                                      </p>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </Link>
 
                           {isAthlete && (

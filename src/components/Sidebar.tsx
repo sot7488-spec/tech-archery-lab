@@ -15,6 +15,7 @@ import {
   Dumbbell,
   LayoutDashboard,
   LogOut,
+  Menu,
   Mail,
   PanelLeftClose,
   PanelLeftOpen,
@@ -24,6 +25,7 @@ import {
   User,
   UserPlus,
   Users,
+  X,
   type LucideIcon,
 } from "lucide-react";
 
@@ -167,6 +169,7 @@ export default function Sidebar() {
     getInitialOpenSections(adminNavSections)
   );
   const [compact, setCompact] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const flatItems = useMemo(
@@ -177,6 +180,10 @@ export default function Sidebar() {
   useEffect(() => {
     loadNavigation();
   }, []);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   function applySections(sections: NavSection[]) {
     setNavSections(sections);
@@ -270,13 +277,150 @@ export default function Sidebar() {
   }
 
   return (
-    <aside
-      className={
-        compact
-          ? "relative hidden min-h-screen w-24 overflow-hidden border-r border-cyan-400/10 bg-slate-950 p-4 text-white shadow-[20px_0_80px_rgba(0,0,0,0.35)] transition-all duration-300 lg:block"
-          : "relative hidden min-h-screen w-72 overflow-hidden border-r border-cyan-400/10 bg-slate-950 p-4 text-white shadow-[20px_0_80px_rgba(0,0,0,0.35)] transition-all duration-300 lg:block"
-      }
-    >
+    <>
+      <div className="fixed inset-x-0 top-0 z-40 border-b border-cyan-400/10 bg-slate-950/92 px-4 py-3 text-white shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl lg:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <Link href="/" className="flex min-w-0 items-center gap-3">
+            <Image
+              src="/tal.png"
+              alt="Tech Archery Lab"
+              width={42}
+              height={42}
+              priority
+              className="drop-shadow-[0_0_18px_rgba(34,211,238,0.42)]"
+            />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-black leading-tight">
+                Tech Archery Lab
+              </p>
+              <p className="text-[9px] font-black uppercase tracking-[0.28em] text-cyan-300">
+                Performance
+              </p>
+            </div>
+          </Link>
+
+          <button
+            type="button"
+            onClick={() => setMobileOpen(true)}
+            className="flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-400/10 text-cyan-200 shadow-[0_0_24px_rgba(34,211,238,0.12)] transition active:scale-95"
+            aria-label="Abrir menu"
+          >
+            <Menu size={22} />
+          </button>
+        </div>
+      </div>
+
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-slate-950/72 backdrop-blur-sm"
+            aria-label="Cerrar menu"
+            onClick={() => setMobileOpen(false)}
+          />
+
+          <aside className="absolute inset-y-0 left-0 flex w-[min(88vw,22rem)] flex-col overflow-hidden border-r border-cyan-400/15 bg-slate-950 p-4 text-white shadow-[24px_0_80px_rgba(0,0,0,0.55)]">
+            <div className="absolute -top-24 left-8 h-64 w-64 rounded-full bg-cyan-400/10 blur-3xl" />
+            <div className="absolute bottom-20 right-[-120px] h-72 w-72 rounded-full bg-blue-500/10 blur-3xl" />
+
+            <div className="relative z-10 flex h-full flex-col">
+              <div className="mb-4 flex items-center justify-between gap-3 rounded-[1.4rem] border border-cyan-400/15 bg-white/[0.03] p-3 shadow-2xl backdrop-blur-xl">
+                <div className="flex min-w-0 items-center gap-3">
+                  <Image
+                    src="/tal.png"
+                    alt="Tech Archery Lab"
+                    width={48}
+                    height={48}
+                    priority
+                    className="drop-shadow-[0_0_22px_rgba(34,211,238,0.42)]"
+                  />
+                  <div className="min-w-0">
+                    <h1 className="truncate text-base font-black leading-tight">
+                      Tech Archery Lab
+                    </h1>
+                    <p className="mt-1 text-[9px] font-black uppercase tracking-[0.32em] text-cyan-300">
+                      Menu
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-slate-200 transition hover:border-cyan-300/30 hover:text-cyan-200"
+                  aria-label="Cerrar menu"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <nav className="flex-1 space-y-2 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(34,211,238,0.45)_transparent]">
+                {loading && (
+                  <p className="rounded-2xl border border-cyan-400/10 bg-white/[0.03] px-4 py-4 text-sm font-bold text-slate-400">
+                    Cargando menu...
+                  </p>
+                )}
+
+                {!loading &&
+                  navSections.map((section) => (
+                    <div
+                      key={section.id}
+                      className="rounded-[1.3rem] border border-white/5 bg-white/[0.025] p-2"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleSection(section.id)}
+                        className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left text-[10px] font-black uppercase tracking-[0.25em] text-slate-500 transition hover:bg-white/[0.04] hover:text-cyan-300"
+                      >
+                        <span>{section.label}</span>
+                        <ChevronDown
+                          size={16}
+                          className={
+                            openSections[section.id]
+                              ? "text-cyan-300 transition"
+                              : "-rotate-90 text-slate-500 transition"
+                          }
+                        />
+                      </button>
+
+                      {openSections[section.id] && (
+                        <div className="mt-1 space-y-1">
+                          {section.items.map((item) => (
+                            <NavLink
+                              key={item.href}
+                              item={item}
+                              active={isActive(item.href)}
+                              onNavigate={() => setMobileOpen(false)}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+              </nav>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="group mt-3 flex w-full items-center gap-3 rounded-2xl border border-red-400/10 px-3 py-3 font-bold text-red-300 transition hover:border-red-400/30 hover:bg-red-500/10 hover:text-white"
+              >
+                <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-red-400/20 bg-red-500/10 text-red-300 transition group-hover:bg-red-500 group-hover:text-white">
+                  <LogOut size={18} />
+                </span>
+                <span>Cerrar sesion</span>
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      <aside
+        className={
+          compact
+            ? "relative hidden min-h-screen w-24 overflow-hidden border-r border-cyan-400/10 bg-slate-950 p-4 text-white shadow-[20px_0_80px_rgba(0,0,0,0.35)] transition-all duration-300 lg:block"
+            : "relative hidden min-h-screen w-72 overflow-hidden border-r border-cyan-400/10 bg-slate-950 p-4 text-white shadow-[20px_0_80px_rgba(0,0,0,0.35)] transition-all duration-300 lg:block"
+        }
+      >
       <div className="absolute -top-24 left-8 h-64 w-64 rounded-full bg-cyan-400/10 blur-3xl" />
       <div className="absolute bottom-20 right-[-120px] h-72 w-72 rounded-full bg-blue-500/10 blur-3xl" />
 
@@ -397,7 +541,8 @@ export default function Sidebar() {
           {!compact && <span>Cerrar sesion</span>}
         </button>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }
 
@@ -405,10 +550,12 @@ function NavLink({
   item,
   active,
   compact = false,
+  onNavigate,
 }: {
   item: NavItem;
   active: boolean;
   compact?: boolean;
+  onNavigate?: () => void;
 }) {
   const Icon = item.icon;
 
@@ -416,6 +563,7 @@ function NavLink({
     <Link
       href={item.href}
       title={item.label}
+      onClick={onNavigate}
       className={
         compact
           ? active

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Activity,
   CloudSun,
   Crosshair,
+  Dumbbell,
   Plus,
   Ruler,
   Save,
@@ -42,6 +43,27 @@ type TrainingRoundDraft = {
   scoringEnabled: boolean;
 };
 
+type TrainingRoutineDraft = {
+  id: number;
+  routineType: "strength" | "spt";
+  title: string;
+  focusArea: string;
+  objective: string;
+  durationMinutes: string;
+  intensity: string;
+  exercises: string;
+  sets: string;
+  reps: string;
+  load: string;
+  restSeconds: string;
+  tempo: string;
+  technicalCue: string;
+  sptDrill: string;
+  sptVolume: string;
+  bowLoad: string;
+  holdSeconds: string;
+};
+
 const inputClass =
   "h-11 w-full rounded-xl border border-cyan-400/10 bg-white/[0.04] px-3 text-xs font-bold text-white outline-none placeholder:text-slate-600 transition focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-400/10";
 
@@ -65,6 +87,8 @@ export default function TrainingCreateModal({
   selectedAthleteId = "",
 }: Props) {
   const [open, setOpen] = useState(false);
+  const [selectedAthlete, setSelectedAthlete] = useState(selectedAthleteId);
+  const [selectedEquipment, setSelectedEquipment] = useState("");
   const [rounds, setRounds] = useState<TrainingRoundDraft[]>([
     {
       id: 1,
@@ -77,6 +101,7 @@ export default function TrainingCreateModal({
       scoringEnabled: true,
     },
   ]);
+  const [routines, setRoutines] = useState<TrainingRoutineDraft[]>([]);
 
   function updateRound(
     id: number,
@@ -109,6 +134,64 @@ export default function TrainingCreateModal({
     setRounds((current) =>
       current.length === 1 ? current : current.filter((round) => round.id !== id)
     );
+  }
+
+  function addRoutine() {
+    setRoutines((current) => [
+      ...current,
+      {
+        id: current.length
+          ? Math.max(...current.map((routine) => routine.id)) + 1
+          : 1,
+        routineType: "strength",
+        title: "",
+        focusArea: "escapula",
+        objective: "",
+        durationMinutes: "20",
+        intensity: "media",
+        exercises: "",
+        sets: "3",
+        reps: "10",
+        load: "",
+        restSeconds: "60",
+        tempo: "",
+        technicalCue: "",
+        sptDrill: "",
+        sptVolume: "",
+        bowLoad: "",
+        holdSeconds: "10",
+      },
+    ]);
+  }
+
+  function updateRoutine(
+    id: number,
+    patch: Partial<Omit<TrainingRoutineDraft, "id">>
+  ) {
+    setRoutines((current) =>
+      current.map((routine) =>
+        routine.id === id ? { ...routine, ...patch } : routine
+      )
+    );
+  }
+
+  function removeRoutine(id: number) {
+    setRoutines((current) => current.filter((routine) => routine.id !== id));
+  }
+
+  const filteredEquipment = useMemo(
+    () =>
+      selectedAthlete
+        ? equipmentProfiles.filter(
+            (equipment) => equipment.athlete_id === selectedAthlete
+          )
+        : [],
+    [equipmentProfiles, selectedAthlete]
+  );
+
+  async function handleCreateTraining(formData: FormData) {
+    await createTraining(formData);
+    setOpen(false);
   }
 
   return (
@@ -165,7 +248,7 @@ export default function TrainingCreateModal({
             </div>
 
             <form
-              action={createTraining}
+              action={handleCreateTraining}
               className="
                 relative z-10 flex-1 space-y-3 overflow-y-auto px-5 py-4 pr-3
                 [scrollbar-width:thin]
@@ -189,7 +272,11 @@ export default function TrainingCreateModal({
                     name="athlete_id"
                     className={inputClass}
                     required
-                    defaultValue={selectedAthleteId}
+                    value={selectedAthlete}
+                    onChange={(event) => {
+                      setSelectedAthlete(event.target.value);
+                      setSelectedEquipment("");
+                    }}
                   >
                     <option className="bg-slate-900 text-white" value="" disabled>
                       Selecciona atleta
@@ -206,12 +293,20 @@ export default function TrainingCreateModal({
                     ))}
                   </select>
 
-                  <select name="equipment_profile_id" className={inputClass} defaultValue="">
+                  <select
+                    name="equipment_profile_id"
+                    className={inputClass}
+                    value={selectedEquipment}
+                    onChange={(event) => setSelectedEquipment(event.target.value)}
+                    disabled={!selectedAthlete}
+                  >
                     <option className="bg-slate-900 text-white" value="">
-                      Equipamiento utilizado
+                      {selectedAthlete
+                        ? "Equipamiento utilizado"
+                        : "Selecciona atleta primero"}
                     </option>
 
-                    {equipmentProfiles.map((equipment) => (
+                    {filteredEquipment.map((equipment) => (
                       <option
                         className="bg-slate-900 text-white"
                         key={equipment.id}
@@ -234,7 +329,7 @@ export default function TrainingCreateModal({
               <section className={sectionClass}>
                 <div className={sectionTitleClass}>
                   <Ruler size={14} />
-                  Rondas programadas
+                  Rondas y rutinas programadas
                 </div>
 
                 <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-4">
@@ -248,6 +343,7 @@ export default function TrainingCreateModal({
                 </div>
 
                 <input type="hidden" name="rounds_count" value={rounds.length} />
+                <input type="hidden" name="routines_count" value={routines.length} />
 
                 <div className="space-y-3">
                   {rounds.map((round, index) => {
@@ -401,14 +497,297 @@ export default function TrainingCreateModal({
                   })}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={addRound}
-                  className="mt-3 inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-cyan-200 transition hover:bg-cyan-400/20"
-                >
-                  <Plus size={15} />
-                  Agregar ronda
-                </button>
+                {routines.length > 0 && (
+                  <div className="mt-3 space-y-3">
+                    {routines.map((routine, index) => {
+                      const routineNumber = index + 1;
+                      const isSpt = routine.routineType === "spt";
+
+                      return (
+                        <div
+                          key={routine.id}
+                          className="rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.045] p-3"
+                        >
+                          <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-[0.26em] text-emerald-300">
+                                Rutina {routineNumber}
+                              </p>
+                              <p className="mt-1 text-sm font-bold text-slate-400">
+                                Fuerza o SPT dentro de esta sesion.
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => removeRoutine(routine.id)}
+                              className="w-fit rounded-xl border border-red-400/20 bg-red-500/10 p-2 text-red-300 transition hover:bg-red-500 hover:text-white"
+                              title="Eliminar rutina"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                            <select
+                              name={`routine_type_${routineNumber}`}
+                              className={inputClass}
+                              value={routine.routineType}
+                              onChange={(event) =>
+                                updateRoutine(routine.id, {
+                                  routineType: event.target.value as "strength" | "spt",
+                                })
+                              }
+                            >
+                              <option className="bg-slate-900 text-white" value="strength">
+                                Fuerza
+                              </option>
+                              <option className="bg-slate-900 text-white" value="spt">
+                                SPT
+                              </option>
+                            </select>
+
+                            <input
+                              name={`routine_title_${routineNumber}`}
+                              placeholder={isSpt ? "Titulo SPT" : "Titulo fuerza"}
+                              className={inputClass}
+                              value={routine.title}
+                              onChange={(event) =>
+                                updateRoutine(routine.id, { title: event.target.value })
+                              }
+                            />
+
+                            <select
+                              name={`routine_focus_area_${routineNumber}`}
+                              className={inputClass}
+                              value={routine.focusArea}
+                              onChange={(event) =>
+                                updateRoutine(routine.id, {
+                                  focusArea: event.target.value,
+                                })
+                              }
+                            >
+                              <option className="bg-slate-900 text-white" value="escapula">
+                                Escapula
+                              </option>
+                              <option className="bg-slate-900 text-white" value="core">
+                                Core
+                              </option>
+                              <option className="bg-slate-900 text-white" value="hombro">
+                                Hombro
+                              </option>
+                              <option className="bg-slate-900 text-white" value="postura">
+                                Postura
+                              </option>
+                              <option className="bg-slate-900 text-white" value="resistencia">
+                                Resistencia
+                              </option>
+                            </select>
+
+                            <select
+                              name={`routine_intensity_${routineNumber}`}
+                              className={inputClass}
+                              value={routine.intensity}
+                              onChange={(event) =>
+                                updateRoutine(routine.id, {
+                                  intensity: event.target.value,
+                                })
+                              }
+                            >
+                              <option className="bg-slate-900 text-white" value="baja">
+                                Baja
+                              </option>
+                              <option className="bg-slate-900 text-white" value="media">
+                                Media
+                              </option>
+                              <option className="bg-slate-900 text-white" value="alta">
+                                Alta
+                              </option>
+                            </select>
+                          </div>
+
+                          <input
+                            name={`routine_objective_${routineNumber}`}
+                            placeholder="Objetivo de la rutina"
+                            className={`${inputClass} mt-3`}
+                            value={routine.objective}
+                            onChange={(event) =>
+                              updateRoutine(routine.id, {
+                                objective: event.target.value,
+                              })
+                            }
+                          />
+
+                          {isSpt ? (
+                            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-5">
+                              <input
+                                name={`routine_spt_drill_${routineNumber}`}
+                                placeholder="Drill SPT"
+                                className={inputClass}
+                                value={routine.sptDrill}
+                                onChange={(event) =>
+                                  updateRoutine(routine.id, {
+                                    sptDrill: event.target.value,
+                                  })
+                                }
+                              />
+                              <input
+                                name={`routine_spt_volume_${routineNumber}`}
+                                placeholder="Volumen"
+                                className={inputClass}
+                                value={routine.sptVolume}
+                                onChange={(event) =>
+                                  updateRoutine(routine.id, {
+                                    sptVolume: event.target.value,
+                                  })
+                                }
+                              />
+                              <input
+                                name={`routine_bow_load_${routineNumber}`}
+                                placeholder="Carga/arco"
+                                className={inputClass}
+                                value={routine.bowLoad}
+                                onChange={(event) =>
+                                  updateRoutine(routine.id, {
+                                    bowLoad: event.target.value,
+                                  })
+                                }
+                              />
+                              <input
+                                name={`routine_hold_seconds_${routineNumber}`}
+                                type="number"
+                                placeholder="Hold seg."
+                                className={inputClass}
+                                value={routine.holdSeconds}
+                                onChange={(event) =>
+                                  updateRoutine(routine.id, {
+                                    holdSeconds: event.target.value,
+                                  })
+                                }
+                              />
+                              <input
+                                name={`routine_duration_minutes_${routineNumber}`}
+                                type="number"
+                                placeholder="Minutos"
+                                className={inputClass}
+                                value={routine.durationMinutes}
+                                onChange={(event) =>
+                                  updateRoutine(routine.id, {
+                                    durationMinutes: event.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                          ) : (
+                            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-6">
+                              <input
+                                name={`routine_exercises_${routineNumber}`}
+                                placeholder="Ejercicios"
+                                className={`${inputClass} md:col-span-2`}
+                                value={routine.exercises}
+                                onChange={(event) =>
+                                  updateRoutine(routine.id, {
+                                    exercises: event.target.value,
+                                  })
+                                }
+                              />
+                              <input
+                                name={`routine_sets_${routineNumber}`}
+                                placeholder="Series"
+                                className={inputClass}
+                                value={routine.sets}
+                                onChange={(event) =>
+                                  updateRoutine(routine.id, {
+                                    sets: event.target.value,
+                                  })
+                                }
+                              />
+                              <input
+                                name={`routine_reps_${routineNumber}`}
+                                placeholder="Reps/tiempo"
+                                className={inputClass}
+                                value={routine.reps}
+                                onChange={(event) =>
+                                  updateRoutine(routine.id, {
+                                    reps: event.target.value,
+                                  })
+                                }
+                              />
+                              <input
+                                name={`routine_load_${routineNumber}`}
+                                placeholder="Carga"
+                                className={inputClass}
+                                value={routine.load}
+                                onChange={(event) =>
+                                  updateRoutine(routine.id, {
+                                    load: event.target.value,
+                                  })
+                                }
+                              />
+                              <input
+                                name={`routine_rest_seconds_${routineNumber}`}
+                                type="number"
+                                placeholder="Descanso s"
+                                className={inputClass}
+                                value={routine.restSeconds}
+                                onChange={(event) =>
+                                  updateRoutine(routine.id, {
+                                    restSeconds: event.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                          )}
+
+                          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <input
+                              name={`routine_tempo_${routineNumber}`}
+                              placeholder="Tempo / ritmo"
+                              className={inputClass}
+                              value={routine.tempo}
+                              onChange={(event) =>
+                                updateRoutine(routine.id, {
+                                  tempo: event.target.value,
+                                })
+                              }
+                            />
+                            <input
+                              name={`routine_technical_cue_${routineNumber}`}
+                              placeholder="Cue tecnico"
+                              className={inputClass}
+                              value={routine.technicalCue}
+                              onChange={(event) =>
+                                updateRoutine(routine.id, {
+                                  technicalCue: event.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="mt-3 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={addRound}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-cyan-200 transition hover:bg-cyan-400/20"
+                  >
+                    <Plus size={15} />
+                    Agregar ronda
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={addRoutine}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-xs font-black uppercase tracking-[0.18em] text-emerald-200 transition hover:bg-emerald-400/20"
+                  >
+                    <Dumbbell size={15} />
+                    Agregar rutina
+                  </button>
+                </div>
               </section>
 
               <section className={sectionClass}>
