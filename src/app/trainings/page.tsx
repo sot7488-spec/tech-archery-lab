@@ -44,6 +44,50 @@ type EquipmentOption = {
   is_active: boolean | null;
 };
 
+type TrainingTemplateRound = {
+  session_type?: string | null;
+  objective?: string | null;
+  distance_meters?: number | string | null;
+  target_size_cm?: number | string | null;
+  total_series?: number | string | null;
+  arrows_per_series?: number | string | null;
+  scoring_enabled?: boolean | null;
+};
+
+type TrainingTemplateRoutine = {
+  routine_type?: "strength" | "spt" | string | null;
+  title?: string | null;
+  focus_area?: string | null;
+  objective?: string | null;
+  duration_minutes?: number | string | null;
+  intensity?: string | null;
+  exercises?: string | null;
+  sets?: string | null;
+  reps?: string | null;
+  load?: string | null;
+  rest_seconds?: number | string | null;
+  tempo?: string | null;
+  technical_cue?: string | null;
+  spt_drill?: string | null;
+  spt_volume?: string | null;
+  bow_load?: string | null;
+  hold_seconds?: number | string | null;
+};
+
+type TrainingTemplateOption = {
+  id: string;
+  name: string;
+  session_type: string | null;
+  location: string | null;
+  weather: string | null;
+  objective: string | null;
+  brace_height_cm: number | string | null;
+  wind_speed_kmh: number | string | null;
+  temperature_c: number | string | null;
+  rounds: TrainingTemplateRound[] | null;
+  routines: TrainingTemplateRoutine[] | null;
+};
+
 function getRelatedName(relation: AthleteOption["users"] | undefined) {
   if (Array.isArray(relation)) return relation[0]?.name || "Atleta sin nombre";
   return relation?.name || "Atleta sin nombre";
@@ -182,6 +226,31 @@ export default async function TrainingsPage({
       : equipmentProfilesRaw
   ) as EquipmentOption[] | null;
 
+  let templatesQuery = supabase
+    .from("training_templates")
+    .select(`
+      id,
+      name,
+      session_type,
+      location,
+      weather,
+      objective,
+      brace_height_cm,
+      wind_speed_kmh,
+      temperature_c,
+      rounds,
+      routines
+    `)
+    .eq("is_active", true)
+    .order("name", { ascending: true });
+
+  if (isCoach) {
+    templatesQuery = templatesQuery.eq("club_id", coachClubId);
+  }
+
+  const { data: trainingTemplatesRaw } = await templatesQuery;
+  const trainingTemplates = (trainingTemplatesRaw || []) as TrainingTemplateOption[];
+
   let query = supabase
     .from("training_sessions")
     .select(`
@@ -260,6 +329,7 @@ export default async function TrainingsPage({
             <TrainingCreateModal
               athletes={athletes}
               equipmentProfiles={equipmentProfiles || []}
+              templates={trainingTemplates}
               selectedAthleteId={currentAthleteId}
             />
           )}

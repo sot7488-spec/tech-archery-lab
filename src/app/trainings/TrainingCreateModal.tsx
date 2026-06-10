@@ -29,6 +29,7 @@ type EquipmentOption = {
 type Props = {
   athletes: AthleteOption[];
   equipmentProfiles: EquipmentOption[];
+  templates?: TrainingTemplateOption[];
   selectedAthleteId?: string;
 };
 
@@ -64,6 +65,50 @@ type TrainingRoutineDraft = {
   holdSeconds: string;
 };
 
+type TrainingTemplateRound = {
+  session_type?: string | null;
+  objective?: string | null;
+  distance_meters?: number | string | null;
+  target_size_cm?: number | string | null;
+  total_series?: number | string | null;
+  arrows_per_series?: number | string | null;
+  scoring_enabled?: boolean | null;
+};
+
+type TrainingTemplateRoutine = {
+  routine_type?: "strength" | "spt" | string | null;
+  title?: string | null;
+  focus_area?: string | null;
+  objective?: string | null;
+  duration_minutes?: number | string | null;
+  intensity?: string | null;
+  exercises?: string | null;
+  sets?: string | null;
+  reps?: string | null;
+  load?: string | null;
+  rest_seconds?: number | string | null;
+  tempo?: string | null;
+  technical_cue?: string | null;
+  spt_drill?: string | null;
+  spt_volume?: string | null;
+  bow_load?: string | null;
+  hold_seconds?: number | string | null;
+};
+
+type TrainingTemplateOption = {
+  id: string;
+  name: string;
+  session_type?: string | null;
+  location?: string | null;
+  weather?: string | null;
+  objective?: string | null;
+  brace_height_cm?: number | string | null;
+  wind_speed_kmh?: number | string | null;
+  temperature_c?: number | string | null;
+  rounds?: TrainingTemplateRound[] | null;
+  routines?: TrainingTemplateRoutine[] | null;
+};
+
 const inputClass =
   "h-11 w-full rounded-xl border border-cyan-400/10 bg-white/[0.04] px-3 text-xs font-bold text-white outline-none placeholder:text-slate-600 transition focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-400/10";
 
@@ -84,11 +129,20 @@ function getAthleteName(athlete: AthleteOption) {
 export default function TrainingCreateModal({
   athletes,
   equipmentProfiles,
+  templates = [],
   selectedAthleteId = "",
 }: Props) {
   const [open, setOpen] = useState(false);
   const [selectedAthlete, setSelectedAthlete] = useState(selectedAthleteId);
   const [selectedEquipment, setSelectedEquipment] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState("");
+  const [braceHeight, setBraceHeight] = useState("");
+  const [location, setLocation] = useState("");
+  const [sessionType, setSessionType] = useState("técnico");
+  const [weather, setWeather] = useState("soleado");
+  const [windSpeed, setWindSpeed] = useState("");
+  const [temperature, setTemperature] = useState("");
+  const [objective, setObjective] = useState("");
   const [rounds, setRounds] = useState<TrainingRoundDraft[]>([
     {
       id: 1,
@@ -102,6 +156,77 @@ export default function TrainingCreateModal({
     },
   ]);
   const [routines, setRoutines] = useState<TrainingRoutineDraft[]>([]);
+
+  function normalizeText(value: unknown) {
+    return value === null || value === undefined ? "" : String(value);
+  }
+
+  function normalizeSessionType(value: unknown) {
+    const text = normalizeText(value);
+
+    if (text === "tecnico") return "técnico";
+    if (text === "puntuacion") return "puntuación";
+    if (text === "fisico") return "físico";
+
+    return text || "técnico";
+  }
+
+  function applyTemplate(templateId: string) {
+    setSelectedTemplate(templateId);
+
+    const template = templates.find((item) => item.id === templateId);
+    if (!template) return;
+
+    setBraceHeight(normalizeText(template.brace_height_cm));
+    setLocation(normalizeText(template.location));
+    setSessionType(normalizeSessionType(template.session_type));
+    setWeather(normalizeText(template.weather) || "soleado");
+    setWindSpeed(normalizeText(template.wind_speed_kmh));
+    setTemperature(normalizeText(template.temperature_c));
+    setObjective(normalizeText(template.objective));
+
+    if (template.rounds?.length) {
+      setRounds(
+        template.rounds.map((round, index) => ({
+          id: index + 1,
+          distanceMeters: normalizeText(round.distance_meters),
+          targetSizeCm: normalizeText(round.target_size_cm),
+          totalSeries: normalizeText(round.total_series),
+          arrowsPerSeries: normalizeText(round.arrows_per_series) || "6",
+          sessionType: normalizeSessionType(round.session_type),
+          objective: normalizeText(round.objective),
+          scoringEnabled: round.scoring_enabled !== false,
+        }))
+      );
+    }
+
+    if (template.routines?.length) {
+      setRoutines(
+        template.routines.map((routine, index) => ({
+          id: index + 1,
+          routineType: routine.routine_type === "spt" ? "spt" : "strength",
+          title: normalizeText(routine.title),
+          focusArea: normalizeText(routine.focus_area) || "escapula",
+          objective: normalizeText(routine.objective),
+          durationMinutes: normalizeText(routine.duration_minutes) || "20",
+          intensity: normalizeText(routine.intensity) || "media",
+          exercises: normalizeText(routine.exercises),
+          sets: normalizeText(routine.sets) || "3",
+          reps: normalizeText(routine.reps) || "10",
+          load: normalizeText(routine.load),
+          restSeconds: normalizeText(routine.rest_seconds) || "60",
+          tempo: normalizeText(routine.tempo),
+          technicalCue: normalizeText(routine.technical_cue),
+          sptDrill: normalizeText(routine.spt_drill),
+          sptVolume: normalizeText(routine.spt_volume),
+          bowLoad: normalizeText(routine.bow_load),
+          holdSeconds: normalizeText(routine.hold_seconds) || "10",
+        }))
+      );
+    } else {
+      setRoutines([]);
+    }
+  }
 
   function updateRound(
     id: number,
@@ -261,6 +386,35 @@ export default function TrainingCreateModal({
                 [&::-webkit-scrollbar-thumb:hover]:bg-cyan-300
               "
             >
+              {templates.length > 0 && (
+                <section className={sectionClass}>
+                  <div className={sectionTitleClass}>
+                    <Plus size={14} />
+                    Plantilla de entrenamiento
+                  </div>
+
+                  <select
+                    className={inputClass}
+                    value={selectedTemplate}
+                    onChange={(event) => applyTemplate(event.target.value)}
+                  >
+                    <option className="bg-slate-900 text-white" value="">
+                      Crear desde cero
+                    </option>
+
+                    {templates.map((template) => (
+                      <option
+                        className="bg-slate-900 text-white"
+                        key={template.id}
+                        value={template.id}
+                      >
+                        {template.name}
+                      </option>
+                    ))}
+                  </select>
+                </section>
+              )}
+
               <section className={sectionClass}>
                 <div className={sectionTitleClass}>
                   <Target size={14} />
@@ -339,6 +493,8 @@ export default function TrainingCreateModal({
                     step="0.1"
                     placeholder="Brace height cm"
                     className={inputClass}
+                    value={braceHeight}
+                    onChange={(event) => setBraceHeight(event.target.value)}
                   />
                 </div>
 
@@ -797,9 +953,20 @@ export default function TrainingCreateModal({
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                  <input name="location" placeholder="Lugar" className={inputClass} />
+                  <input
+                    name="location"
+                    placeholder="Lugar"
+                    className={inputClass}
+                    value={location}
+                    onChange={(event) => setLocation(event.target.value)}
+                  />
 
-                  <select name="session_type" className={inputClass} defaultValue="técnico">
+                  <select
+                    name="session_type"
+                    className={inputClass}
+                    value={sessionType}
+                    onChange={(event) => setSessionType(event.target.value)}
+                  >
                     <option className="bg-slate-900 text-white" value="técnico">
                       Técnico
                     </option>
@@ -817,7 +984,12 @@ export default function TrainingCreateModal({
                     </option>
                   </select>
 
-                  <select name="weather" className={inputClass} defaultValue="soleado">
+                  <select
+                    name="weather"
+                    className={inputClass}
+                    value={weather}
+                    onChange={(event) => setWeather(event.target.value)}
+                  >
                     <option className="bg-slate-900 text-white" value="soleado">
                       Soleado
                     </option>
@@ -843,6 +1015,8 @@ export default function TrainingCreateModal({
                     type="number"
                     placeholder="Viento km/h"
                     className={inputClass}
+                    value={windSpeed}
+                    onChange={(event) => setWindSpeed(event.target.value)}
                   />
 
                   <input
@@ -850,12 +1024,16 @@ export default function TrainingCreateModal({
                     type="number"
                     placeholder="Temperatura °C"
                     className={inputClass}
+                    value={temperature}
+                    onChange={(event) => setTemperature(event.target.value)}
                   />
 
                   <input
                     name="objective"
                     placeholder="Objetivo del entrenamiento"
                     className={inputClass}
+                    value={objective}
+                    onChange={(event) => setObjective(event.target.value)}
                   />
                 </div>
               </section>
