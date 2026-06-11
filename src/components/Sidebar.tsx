@@ -18,6 +18,7 @@ import {
   LogOut,
   Menu,
   Mail,
+  ScanLine,
   PanelLeftClose,
   PanelLeftOpen,
   Shield,
@@ -53,6 +54,7 @@ const adminNavSections: NavSection[] = [
     items: [
       { href: "/", label: "Dashboard", icon: LayoutDashboard },
       { href: "/analytics", label: "Analytics", icon: BarChart3 },
+      { href: "/video-analysis", label: "Video analisis", icon: ScanLine },
       { href: "/agenda", label: "Agenda", icon: CalendarDays },
     ],
   },
@@ -98,6 +100,7 @@ function coachNavSections(clubId: string | null): NavSection[] {
       items: [
         { href: "/", label: "Dashboard", icon: LayoutDashboard },
         { href: "/analytics", label: "Analytics", icon: BarChart3 },
+        { href: "/video-analysis", label: "Video analisis", icon: ScanLine },
         { href: "/agenda", label: "Agenda", icon: CalendarDays },
       ],
     },
