@@ -59,6 +59,34 @@ async function assertCanMutateTraining(
   return currentUser;
 }
 
+async function assertCanConfigureTraining(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  trainingSessionId: string
+) {
+  const currentUser = await assertCanMutateTraining(supabase, trainingSessionId);
+
+  if (currentUser.role !== "admin" && currentUser.role !== "coach") {
+    throw new Error("Solo admin o coach pueden editar la configuracion.");
+  }
+
+  return currentUser;
+}
+
+function nullableString(value: FormDataEntryValue | null) {
+  const text = String(value || "").trim();
+  return text || null;
+}
+
+function nullableNumber(value: FormDataEntryValue | null) {
+  const numberValue = Number(value || 0);
+  return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : null;
+}
+
+function positiveNumber(value: FormDataEntryValue | null, fallback = 0) {
+  const numberValue = Number(value || fallback);
+  return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : fallback;
+}
+
 type SeriesActionState = {
   completed?: boolean;
   message?: string;
@@ -70,6 +98,228 @@ type RoundActionState = {
   success?: boolean;
   error?: string;
 };
+
+export async function updateTrainingConfiguration(formData: FormData) {
+  const supabase = await createClient();
+  const trainingSessionId = String(formData.get("training_session_id") || "");
+
+  if (!trainingSessionId) throw new Error("Falta el entrenamiento.");
+
+  await assertCanConfigureTraining(supabase, trainingSessionId);
+
+  const { error: trainingError } = await supabase
+    .from("training_sessions")
+    .update({
+      training_date: String(formData.get("training_date") || "") || null,
+      equipment_profile_id:
+        String(formData.get("equipment_profile_id") || "") || null,
+      brace_height_cm: nullableNumber(formData.get("brace_height_cm")),
+      location: nullableString(formData.get("location")),
+      session_type: nullableString(formData.get("session_type")),
+      weather: String(formData.get("weather") || "otro"),
+      wind_speed_kmh: nullableNumber(formData.get("wind_speed_kmh")),
+      temperature_c: nullableNumber(formData.get("temperature_c")),
+      objective: nullableString(formData.get("objective")),
+      coach_notes: nullableString(formData.get("coach_notes")),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", trainingSessionId);
+
+  if (trainingError) throw new Error(trainingError.message);
+
+  const roundsCount = positiveNumber(formData.get("rounds_count"), 0);
+  const submittedRoundIds: string[] = [];
+
+  const { data: existingRounds } = await supabase
+    .from("training_rounds")
+    .select("id")
+    .eq("training_session_id", trainingSessionId);
+
+  for (let index = 0; index < roundsCount; index += 1) {
+    const roundNumber = index + 1;
+    const roundId = String(formData.get(`round_id_${roundNumber}`) || "");
+    const payload = {
+      round_number: roundNumber,
+      distance_meters: positiveNumber(
+        formData.get(`round_distance_meters_${roundNumber}`)
+      ),
+      target_size_cm: positiveNumber(
+        formData.get(`round_target_size_cm_${roundNumber}`)
+      ),
+      total_series: positiveNumber(formData.get(`round_total_series_${roundNumber}`)),
+      arrows_per_series: positiveNumber(
+        formData.get(`round_arrows_per_series_${roundNumber}`),
+        6
+      ),
+      scoring_enabled:
+        String(formData.get(`round_scoring_enabled_${roundNumber}`) || "") ===
+        "on",
+      session_type: nullableString(formData.get(`round_session_type_${roundNumber}`)),
+      objective: nullableString(formData.get(`round_objective_${roundNumber}`)),
+      updated_at: new Date().toISOString(),
+    };
+
+    if (
+      !payload.distance_meters ||
+      !payload.target_size_cm ||
+      !payload.total_series ||
+      !payload.arrows_per_series
+    ) {
+      throw new Error("Completa distancia, diana, series y flechas de cada ronda.");
+    }
+
+    if (roundId) {
+      submittedRoundIds.push(roundId);
+      const { error } = await supabase
+        .from("training_rounds")
+        .update(payload)
+        .eq("id", roundId)
+        .eq("training_session_id", trainingSessionId);
+
+      if (error) throw new Error(error.message);
+    } else {
+      const { data: insertedRound, error } = await supabase
+        .from("training_rounds")
+        .insert({
+          ...payload,
+          training_session_id: trainingSessionId,
+          status: "active",
+        })
+        .select("id")
+        .single();
+
+      if (error) throw new Error(error.message);
+      if (insertedRound?.id) submittedRoundIds.push(insertedRound.id);
+    }
+  }
+
+  const removedRoundIds =
+    existingRounds
+      ?.map((round) => round.id)
+      .filter((roundId) => !submittedRoundIds.includes(roundId)) || [];
+
+  if (removedRoundIds.length > 0) {
+    const { data: removedSeries } = await supabase
+      .from("series")
+      .select("id")
+      .in("training_round_id", removedRoundIds);
+
+    const removedSeriesIds = removedSeries?.map((serie) => serie.id) || [];
+
+    if (removedSeriesIds.length > 0) {
+      const { error: arrowsError } = await supabase
+        .from("arrows")
+        .delete()
+        .in("series_id", removedSeriesIds);
+
+      if (arrowsError) throw new Error(arrowsError.message);
+
+      const { error: seriesError } = await supabase
+        .from("series")
+        .delete()
+        .in("id", removedSeriesIds);
+
+      if (seriesError) throw new Error(seriesError.message);
+    }
+
+    const { error: roundsDeleteError } = await supabase
+      .from("training_rounds")
+      .delete()
+      .in("id", removedRoundIds);
+
+    if (roundsDeleteError) throw new Error(roundsDeleteError.message);
+  }
+
+  const routinesCount = positiveNumber(formData.get("routines_count"), 0);
+  const submittedRoutineIds: string[] = [];
+
+  const { data: existingRoutines } = await supabase
+    .from("training_routine_blocks")
+    .select("id")
+    .eq("training_session_id", trainingSessionId);
+
+  for (let index = 0; index < routinesCount; index += 1) {
+    const routineNumber = index + 1;
+    const routineId = String(formData.get(`routine_id_${routineNumber}`) || "");
+    const routineType =
+      String(formData.get(`routine_type_${routineNumber}`) || "strength") ===
+      "spt"
+        ? "spt"
+        : "strength";
+    const payload = {
+      routine_number: routineNumber,
+      routine_type: routineType,
+      title: nullableString(formData.get(`routine_title_${routineNumber}`)),
+      focus_area: nullableString(formData.get(`routine_focus_area_${routineNumber}`)),
+      objective: nullableString(formData.get(`routine_objective_${routineNumber}`)),
+      duration_minutes: nullableNumber(
+        formData.get(`routine_duration_minutes_${routineNumber}`)
+      ),
+      intensity: nullableString(formData.get(`routine_intensity_${routineNumber}`)),
+      exercises: nullableString(formData.get(`routine_exercises_${routineNumber}`)),
+      sets: nullableString(formData.get(`routine_sets_${routineNumber}`)),
+      reps: nullableString(formData.get(`routine_reps_${routineNumber}`)),
+      load: nullableString(formData.get(`routine_load_${routineNumber}`)),
+      rest_seconds: nullableNumber(
+        formData.get(`routine_rest_seconds_${routineNumber}`)
+      ),
+      tempo: nullableString(formData.get(`routine_tempo_${routineNumber}`)),
+      technical_cue: nullableString(
+        formData.get(`routine_technical_cue_${routineNumber}`)
+      ),
+      spt_drill: nullableString(formData.get(`routine_spt_drill_${routineNumber}`)),
+      spt_volume: nullableString(formData.get(`routine_spt_volume_${routineNumber}`)),
+      bow_load: nullableString(formData.get(`routine_bow_load_${routineNumber}`)),
+      hold_seconds: nullableNumber(
+        formData.get(`routine_hold_seconds_${routineNumber}`)
+      ),
+      updated_at: new Date().toISOString(),
+    };
+
+    if (routineId) {
+      submittedRoutineIds.push(routineId);
+      const { error } = await supabase
+        .from("training_routine_blocks")
+        .update(payload)
+        .eq("id", routineId)
+        .eq("training_session_id", trainingSessionId);
+
+      if (error) throw new Error(error.message);
+    } else {
+      const { data: insertedRoutine, error } = await supabase
+        .from("training_routine_blocks")
+        .insert({
+          ...payload,
+          training_session_id: trainingSessionId,
+        })
+        .select("id")
+        .single();
+
+      if (error) throw new Error(error.message);
+      if (insertedRoutine?.id) submittedRoutineIds.push(insertedRoutine.id);
+    }
+  }
+
+  const removedRoutineIds =
+    existingRoutines
+      ?.map((routine) => routine.id)
+      .filter((routineId) => !submittedRoutineIds.includes(routineId)) || [];
+
+  if (removedRoutineIds.length > 0) {
+    const { error } = await supabase
+      .from("training_routine_blocks")
+      .delete()
+      .in("id", removedRoutineIds);
+
+    if (error) throw new Error(error.message);
+  }
+
+  await syncTrainingTotalsAndStatus(supabase, trainingSessionId);
+
+  revalidatePath(`/trainings/${trainingSessionId}`);
+  revalidatePath("/trainings");
+  revalidatePath("/agenda");
+}
 
 function calculateGroupSizeCm(
   positions: Array<{ x: number | null; y: number | null }>,

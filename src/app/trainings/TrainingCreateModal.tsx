@@ -133,7 +133,9 @@ export default function TrainingCreateModal({
   selectedAthleteId = "",
 }: Props) {
   const [open, setOpen] = useState(false);
-  const [selectedAthlete, setSelectedAthlete] = useState(selectedAthleteId);
+  const [selectedAthletes, setSelectedAthletes] = useState<string[]>(
+    selectedAthleteId ? [selectedAthleteId] : []
+  );
   const [selectedEquipment, setSelectedEquipment] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState("");
   const [braceHeight, setBraceHeight] = useState("");
@@ -306,13 +308,17 @@ export default function TrainingCreateModal({
 
   const filteredEquipment = useMemo(
     () =>
-      selectedAthlete
+      selectedAthletes.length === 1
         ? equipmentProfiles.filter(
-            (equipment) => equipment.athlete_id === selectedAthlete
+            (equipment) => equipment.athlete_id === selectedAthletes[0]
           )
         : [],
-    [equipmentProfiles, selectedAthlete]
+    [equipmentProfiles, selectedAthletes]
   );
+
+  const selectedAthleteNames = athletes
+    .filter((athlete) => selectedAthletes.includes(athlete.id))
+    .map(getAthleteName);
 
   async function handleCreateTraining(formData: FormData) {
     await createTraining(formData);
@@ -422,42 +428,69 @@ export default function TrainingCreateModal({
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                  <select
-                    name="athlete_id"
-                    className={inputClass}
-                    required
-                    value={selectedAthlete}
-                    onChange={(event) => {
-                      setSelectedAthlete(event.target.value);
-                      setSelectedEquipment("");
-                    }}
-                  >
-                    <option className="bg-slate-900 text-white" value="" disabled>
-                      Selecciona atleta
-                    </option>
+                  <div className="rounded-2xl border border-cyan-400/10 bg-white/[0.025] p-3 md:col-span-2">
+                    <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300">
+                        Atletas
+                      </p>
+                      <span className="rounded-full border border-cyan-400/15 bg-cyan-400/10 px-3 py-1 text-xs font-black text-cyan-200">
+                        {selectedAthletes.length} seleccionado
+                        {selectedAthletes.length === 1 ? "" : "s"}
+                      </span>
+                    </div>
 
-                    {athletes.map((athlete) => (
-                      <option
-                        className="bg-slate-900 text-white"
-                        key={athlete.id}
-                        value={athlete.id}
-                      >
-                        {getAthleteName(athlete)}
-                      </option>
-                    ))}
-                  </select>
+                    <div className="max-h-44 space-y-2 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(34,211,238,0.45)_transparent]">
+                      {athletes.map((athlete) => {
+                        const checked = selectedAthletes.includes(athlete.id);
+
+                        return (
+                          <label
+                            key={athlete.id}
+                            className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 text-sm font-bold transition ${
+                              checked
+                                ? "border-cyan-300/40 bg-cyan-400/15 text-white"
+                                : "border-white/10 bg-slate-950/40 text-slate-300 hover:border-cyan-400/25"
+                            }`}
+                          >
+                            <input
+                              name="athlete_ids"
+                              type="checkbox"
+                              value={athlete.id}
+                              checked={checked}
+                              onChange={(event) => {
+                                setSelectedEquipment("");
+                                setSelectedAthletes((current) =>
+                                  event.target.checked
+                                    ? [...current, athlete.id]
+                                    : current.filter((id) => id !== athlete.id)
+                                );
+                              }}
+                              className="h-4 w-4 accent-cyan-300"
+                            />
+                            <span className="truncate">{getAthleteName(athlete)}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+
+                    {selectedAthleteNames.length > 0 && (
+                      <p className="mt-2 truncate text-xs font-bold text-slate-500">
+                        {selectedAthleteNames.join(", ")}
+                      </p>
+                    )}
+                  </div>
 
                   <select
                     name="equipment_profile_id"
                     className={inputClass}
                     value={selectedEquipment}
                     onChange={(event) => setSelectedEquipment(event.target.value)}
-                    disabled={!selectedAthlete}
+                    disabled={selectedAthletes.length !== 1}
                   >
                     <option className="bg-slate-900 text-white" value="">
-                      {selectedAthlete
+                      {selectedAthletes.length === 1
                         ? "Equipamiento utilizado"
-                        : "Selecciona atleta primero"}
+                        : "Disponible con un solo atleta"}
                     </option>
 
                     {filteredEquipment.map((equipment) => (
@@ -1063,10 +1096,13 @@ export default function TrainingCreateModal({
 
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-2 rounded-2xl bg-cyan-400 px-6 py-3 text-sm font-black text-slate-950 shadow-[0_0_35px_rgba(34,211,238,0.25)] transition hover:-translate-y-0.5 hover:bg-cyan-300"
+                  disabled={selectedAthletes.length === 0}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-cyan-400 px-6 py-3 text-sm font-black text-slate-950 shadow-[0_0_35px_rgba(34,211,238,0.25)] transition hover:-translate-y-0.5 hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Save size={16} />
-                  Crear entrenamiento
+                  {selectedAthletes.length > 1
+                    ? "Crear entrenamientos"
+                    : "Crear entrenamiento"}
                 </button>
               </div>
             </form>

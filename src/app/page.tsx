@@ -4,6 +4,8 @@ import { Activity, BarChart3, Crosshair, Target, Trophy, Users, type LucideIcon 
 import { createClient } from "@/lib/supabase/server";
 import ScoreChart from "@/components/ScoreChart";
 import { LogoutButton } from "@/components/LogoutButton";
+import { AnimatedNumber } from "@/components/AnimatedNumber";
+import { ViewReveal } from "@/components/ViewReveal";
 
 export const dynamic = "force-dynamic";
 
@@ -404,7 +406,7 @@ export default async function DashboardPage() {
                     {alert.title}
                   </p>
                   <p className={`mt-1 text-3xl font-black ${alert.tone}`}>
-                    {alert.value}
+                    <AnimatedNumber value={alert.value} />
                   </p>
                 </div>
               ))}
@@ -481,28 +483,32 @@ function KpiCard({
   highlight?: boolean;
 }) {
   return (
-    <div
-      className={
-        highlight
-          ? "tal-metric-card border-cyan-300/30 bg-cyan-400/10"
-          : "tal-metric-card"
-      }
-    >
-      {Icon && (
-        <span className="tal-metric-icon">
-          <Icon size={20} />
-        </span>
-      )}
-      <p
+    <ViewReveal>
+      <div
         className={
           highlight
-            ? "tal-metric-label text-cyan-300"
-            : "tal-metric-label"
+            ? "tal-metric-card border-cyan-300/30 bg-cyan-400/10"
+            : "tal-metric-card"
         }
       >
-        {title}
-      </p>
-      <p className="tal-metric-value">{value}</p>
-    </div>
+        {Icon && (
+          <span className="tal-metric-icon">
+            <Icon size={20} />
+          </span>
+        )}
+        <p
+          className={
+            highlight
+              ? "tal-metric-label text-cyan-300"
+              : "tal-metric-label"
+          }
+        >
+          {title}
+        </p>
+        <p className="tal-metric-value">
+          <AnimatedNumber value={value} />
+        </p>
+      </div>
+    </ViewReveal>
   );
 }

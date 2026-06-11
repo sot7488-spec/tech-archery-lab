@@ -2,7 +2,10 @@ export const dynamic = "force-dynamic";
 
 import { TargetHeatmap } from "@/components/target-heatmap";
 import { AthleteCharts } from "@/components/athlete-charts";
+import { AnimatedNumber } from "@/components/AnimatedNumber";
+import { ViewReveal } from "@/components/ViewReveal";
 import AthleteManageModal from "../AthleteManageModal";
+import AchievementZoneEditButton from "./AchievementZoneEditButton";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
@@ -11,13 +14,10 @@ import {
   BarChart3,
   Brain,
   CalendarClock,
-  CheckCircle2,
   Crosshair,
   Dumbbell,
   Filter,
-  Flame,
   Gauge,
-  Hand,
   Mail,
   Medal,
   Phone,
@@ -145,6 +145,13 @@ export default async function AthleteProfilePage({
   const supportStaff = supportStaffRaw || [];
 
   const trainings = athlete.training_sessions || [];
+  const getScoringSeries = (training: any) =>
+    training.training_rounds?.flatMap((round: any) =>
+      round.scoring_enabled === false ? [] : round.series || []
+    ) || [];
+  const achievementZoneMin = Number(athlete.achievement_zone_min_score ?? 9);
+  const achievementZoneMax = Number(athlete.achievement_zone_max_score ?? 10);
+  const achievementZoneLabel = `${achievementZoneMin}-${achievementZoneMax}`;
 
   const filteredTrainings = trainings.filter((training: any) => {
     const trainingDate = training.training_date;
@@ -161,11 +168,8 @@ export default async function AthleteProfilePage({
     return matchFrom && matchTo && hasDistance;
   });
 
-  const allSeries = filteredTrainings.flatMap(
-    (training: any) =>
-      training.training_rounds?.flatMap(
-        (round: any) => round.series || []
-      ) || []
+  const allSeries = filteredTrainings.flatMap((training: any) =>
+    getScoringSeries(training)
   );
 
   const allArrows = allSeries.flatMap((serie: any) => serie.arrows || []);
@@ -183,6 +187,15 @@ export default async function AthleteProfilePage({
     totalArrows > 0 ? (totalScore / totalArrows).toFixed(2) : "0.00";
 
   const totalX = allArrows.filter((arrow: any) => arrow.is_x).length;
+  const achievementZoneHits = allArrows.filter((arrow: any) => {
+    const score = Number(arrow.score);
+
+    return score >= achievementZoneMin && score <= achievementZoneMax;
+  }).length;
+  const achievementZoneEffectiveness =
+    totalArrows > 0
+      ? Number(((achievementZoneHits / totalArrows) * 100).toFixed(1))
+      : 0;
 
   const bestSeries = [...allSeries].sort(
     (a: any, b: any) => Number(b.total_score) - Number(a.total_score)
@@ -206,16 +219,18 @@ export default async function AthleteProfilePage({
   const secondaryStats: StatItem[] = [
     { title: "Score acumulado", value: totalScore, icon: Target },
     { title: "Total X", value: totalX, icon: X, tone: "text-yellow-300" },
+    {
+      title: "Efectividad zona",
+      value: `${achievementZoneEffectiveness}%`,
+      icon: Medal,
+      tone: "text-emerald-300",
+    },
     { title: "Activos", value: activeTrainings, icon: CalendarClock },
-    { title: "Finalizados", value: completedTrainings, icon: CheckCircle2 },
   ];
 
   const trainingChartData = filteredTrainings
     .map((training: any) => {
-      const trainingSeries =
-        training.training_rounds?.flatMap(
-          (round: any) => round.series || []
-        ) || [];
+      const trainingSeries = getScoringSeries(training);
 
       const trainingArrows =
         trainingSeries.flatMap((serie: any) => serie.arrows || []) || [];
@@ -240,10 +255,7 @@ export default async function AthleteProfilePage({
 
   const xChartData = filteredTrainings
     .map((training: any) => {
-      const trainingSeries =
-        training.training_rounds?.flatMap(
-          (round: any) => round.series || []
-        ) || [];
+      const trainingSeries = getScoringSeries(training);
 
       const trainingArrows =
         trainingSeries.flatMap((serie: any) => serie.arrows || []) || [];
@@ -263,6 +275,8 @@ export default async function AthleteProfilePage({
 
   filteredTrainings.forEach((training: any) => {
     training.training_rounds?.forEach((round: any) => {
+      if (round.scoring_enabled === false) return;
+
       const roundDistance = Number(round.distance_meters);
 
       if (!roundDistance) return;
@@ -307,10 +321,7 @@ export default async function AthleteProfilePage({
 
   const mostXTraining = filteredTrainings
     .map((training: any) => {
-      const trainingSeries =
-        training.training_rounds?.flatMap(
-          (round: any) => round.series || []
-        ) || [];
+      const trainingSeries = getScoringSeries(training);
 
       const trainingArrows =
         trainingSeries.flatMap((serie: any) => serie.arrows || []) || [];
@@ -449,11 +460,26 @@ export default async function AthleteProfilePage({
       </Link>
 
       <div className="tal-metric-card px-5 py-3 text-center">
-        <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-          Libras
-        </p>
-        <p className="text-2xl font-black text-white">
-          {athlete.draw_weight_lbs || "-"}
+        <div className="mb-1 flex items-center justify-center gap-2">
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+            Zona de logro
+          </p>
+          {canManageAthlete && (
+            <AchievementZoneEditButton
+              athleteId={athlete.id}
+              minScore={achievementZoneMin}
+              maxScore={achievementZoneMax}
+            />
+          )}
+        </div>
+        <p className="text-2xl font-black text-white">{achievementZoneLabel}</p>
+        <p className="mt-1 text-xs font-bold text-emerald-300">
+          <AnimatedNumber
+            value={achievementZoneEffectiveness}
+            suffix="%"
+            decimals={achievementZoneEffectiveness % 1 === 0 ? 0 : 1}
+          />{" "}
+          efectividad
         </p>
       </div>
     </div>
@@ -717,7 +743,11 @@ export default async function AthleteProfilePage({
       <section className="mb-6 grid grid-cols-1 gap-5 md:grid-cols-4">
         <InfoCard title="Categoría" value={athlete.category || "-"} />
         <InfoCard title="Mano dominante" value={athlete.dominant_hand || "-"} />
-        <InfoCard title="Libras" value={athlete.draw_weight_lbs || "-"} icon={Flame} />
+        <InfoCard
+          title="Zona de logro"
+          value={achievementZoneLabel}
+          icon={Crosshair}
+        />
         <InfoCard title="Tipo de arco" value={athlete.bow_type || "-"} icon={Target} />
       </section>
 
@@ -814,16 +844,20 @@ function StatCard({
   accent?: boolean;
 }) {
   return (
-    <div className={accent ? "tal-metric-card border-cyan-300/30 bg-cyan-400/10" : "tal-metric-card"}>
-      <span className="tal-metric-icon">
-        <Icon size={20} />
-      </span>
-      <p className="tal-metric-label">
-        {title}
-      </p>
+    <ViewReveal>
+      <div className={accent ? "tal-metric-card border-cyan-300/30 bg-cyan-400/10" : "tal-metric-card"}>
+        <span className="tal-metric-icon">
+          <Icon size={20} />
+        </span>
+        <p className="tal-metric-label">
+          {title}
+        </p>
 
-      <h2 className={`tal-metric-value ${tone}`}>{value}</h2>
-    </div>
+        <h2 className={`tal-metric-value ${tone}`}>
+          <AnimatedMetricValue value={value} />
+        </h2>
+      </div>
+    </ViewReveal>
   );
 }
 
@@ -837,15 +871,19 @@ function RecordCard({
   detail: string;
 }) {
   return (
-    <div className="tal-metric-card">
-      <p className="tal-metric-label text-cyan-300">
-        {title}
-      </p>
+    <ViewReveal>
+      <div className="tal-metric-card">
+        <p className="tal-metric-label text-cyan-300">
+          {title}
+        </p>
 
-      <h4 className="tal-metric-value">{value}</h4>
+        <h4 className="tal-metric-value">
+          <AnimatedMetricValue value={value} />
+        </h4>
 
-      <p className="relative z-10 mt-2 text-sm text-slate-400">{detail}</p>
-    </div>
+        <p className="relative z-10 mt-2 text-sm text-slate-400">{detail}</p>
+      </div>
+    </ViewReveal>
   );
 }
 
@@ -859,16 +897,38 @@ function InfoCard({
   icon?: LucideIcon;
 }) {
   return (
-    <div className="tal-metric-card">
-      <span className="tal-metric-icon">
-        <Icon size={20} />
-      </span>
-      <p className="tal-metric-label">
-        {title}
-      </p>
+    <ViewReveal>
+      <div className="tal-metric-card">
+        <span className="tal-metric-icon">
+          <Icon size={20} />
+        </span>
+        <p className="tal-metric-label">
+          {title}
+        </p>
 
-      <h2 className="relative z-10 mt-3 text-2xl font-black text-white">{value}</h2>
-    </div>
+        <h2 className="relative z-10 mt-3 text-2xl font-black text-white">
+          <AnimatedMetricValue value={value} />
+        </h2>
+      </div>
+    </ViewReveal>
+  );
+}
+
+function AnimatedMetricValue({ value }: { value: string | number }) {
+  const textValue = String(value);
+  const match = textValue.match(/^(-?\d+(?:\.\d+)?)(%)?$/);
+
+  if (!match) return <>{value}</>;
+
+  const numericValue = Number(match[1]);
+  const decimals = match[1].includes(".") ? match[1].split(".")[1].length : 0;
+
+  return (
+    <AnimatedNumber
+      value={numericValue}
+      suffix={match[2] || ""}
+      decimals={decimals}
+    />
   );
 }
 

@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import TrainingSeriesCapture from "./TrainingSeriesCapture";
 import TrainingRoundFinalizeForm from "./TrainingRoundFinalizeForm";
 import TrainingDeleteButton from "../TrainingDeleteButton";
+import TrainingConfigurationEditModal from "./TrainingConfigurationEditModal";
 import {
   Activity,
   ArrowLeft,
@@ -222,7 +223,18 @@ export default async function TrainingDetailPage({
   const isCompleted = training.status === "completed";
   const canDeleteTraining =
     currentUser?.role === "admin" || currentUser?.role === "coach";
+  const canEditConfiguration =
+    currentUser?.role === "admin" || currentUser?.role === "coach";
   const athleteName = getRelationName(training.athlete_profiles?.users);
+
+  const { data: equipmentProfilesRaw } = await supabase
+    .from("equipment_profiles")
+    .select("id, name")
+    .eq("athlete_id", training.athlete_profiles?.id)
+    .eq("is_active", true)
+    .order("name", { ascending: true });
+
+  const equipmentProfiles = equipmentProfilesRaw || [];
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-slate-950 px-6 py-8 text-white">
@@ -241,6 +253,15 @@ export default async function TrainingDetailPage({
           </Link>
 
           <div className="flex flex-wrap items-center gap-3">
+            {canEditConfiguration && (
+              <TrainingConfigurationEditModal
+                training={training}
+                rounds={trainingRounds}
+                routines={routineBlocks}
+                equipmentProfiles={equipmentProfiles}
+              />
+            )}
+
             {canDeleteTraining && (
               <TrainingDeleteButton trainingId={training.id} />
             )}

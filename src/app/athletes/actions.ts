@@ -198,3 +198,51 @@ export async function manageAthleteWithStrategy(formData: FormData) {
   revalidatePath("/athletes");
   redirect("/athletes");
 }
+
+export async function updateAthleteAchievementZone(formData: FormData) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) throw new Error("No autenticado.");
+
+  const { data: currentUser } = await supabase
+    .from("users")
+    .select("role, club_id")
+    .eq("id", user.id)
+    .single();
+
+  if (currentUser?.role !== "admin" && currentUser?.role !== "coach") {
+    throw new Error("Solo admin o coach pueden editar la zona de logro.");
+  }
+
+  const athleteId = String(formData.get("athlete_id") || "").trim();
+  const minScore = Number(formData.get("achievement_zone_min_score"));
+  const maxScore = Number(formData.get("achievement_zone_max_score"));
+
+  if (!athleteId) throw new Error("Falta el atleta.");
+
+  if (
+    !Number.isInteger(minScore) ||
+    !Number.isInteger(maxScore) ||
+    minScore < 0 ||
+    maxScore > 10 ||
+    minScore > maxScore
+  ) {
+    throw new Error("La zona de logro debe ser un rango valido entre 0 y 10.");
+  }
+
+  const { error } = await supabase.rpc("update_athlete_achievement_zone", {
+    p_athlete_id: athleteId,
+    p_min_score: minScore,
+    p_max_score: maxScore,
+  });
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/athletes/${athleteId}`);
+  revalidatePath("/athletes");
+  revalidatePath("/analytics");
+}

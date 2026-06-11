@@ -16,6 +16,8 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { DashboardAnalytics } from "@/components/dashboard-analytics";
 import { AnalyticsInsights } from "@/components/analytics-insights";
+import { AnimatedNumber } from "@/components/AnimatedNumber";
+import { ViewReveal } from "@/components/ViewReveal";
 
 export const dynamic = "force-dynamic";
 
@@ -355,6 +357,7 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
           </Link>
         </div>
 
+        <ViewReveal>
         <section className="tal-chart-card">
           <form method="GET" className="space-y-5">
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-[220px_1fr]">
@@ -463,10 +466,11 @@ export default async function AnalyticsPage({ searchParams }: PageProps) {
             </div>
           </form>
         </section>
+        </ViewReveal>
 
         <section className="grid grid-cols-2 gap-5 xl:grid-cols-7">
-          <Metric icon={Target} title="Accuracy" value={`${accuracy}%`} />
-          <Metric icon={Percent} title="Efectividad 10" value={`${effectiveness}%`} accent="text-emerald-300" />
+          <Metric icon={Target} title="Accuracy" value={accuracy} suffix="%" decimals={1} />
+          <Metric icon={Percent} title="Efectividad 10" value={effectiveness} suffix="%" decimals={1} accent="text-emerald-300" />
           <Metric icon={Crosshair} title="Promedio" value={averageScore} />
           <Metric icon={Layers3} title="Volumen prom." value={averageArrowVolume} />
           <Metric icon={Trophy} title="X Count" value={xCount} accent="text-yellow-300" />
@@ -502,20 +506,28 @@ function Metric({
   icon: Icon,
   title,
   value,
+  suffix = "",
+  decimals = 0,
   accent = "text-cyan-300",
 }: {
   icon: React.ComponentType<{ size?: number }>;
   title: string;
-  value: number | string;
+  value: number;
+  suffix?: string;
+  decimals?: number;
   accent?: string;
 }) {
   return (
-    <div className="tal-metric-card">
-      <span className="tal-metric-icon">
-        <Icon size={20} />
-      </span>
-      <p className="tal-metric-label">{title}</p>
-      <p className={`tal-metric-value ${accent}`}>{value}</p>
-    </div>
+    <ViewReveal>
+      <div className="tal-metric-card">
+        <span className="tal-metric-icon">
+          <Icon size={20} />
+        </span>
+        <p className="tal-metric-label">{title}</p>
+        <p className={`tal-metric-value ${accent}`}>
+          <AnimatedNumber value={value} suffix={suffix} decimals={decimals} />
+        </p>
+      </div>
+    </ViewReveal>
   );
 }

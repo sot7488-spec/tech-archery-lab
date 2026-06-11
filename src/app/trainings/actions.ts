@@ -135,14 +135,23 @@ export async function createTraining(formData: FormData) {
     throw new Error("No tienes permiso para crear entrenamientos.");
   }
 
-  const athlete_id = String(formData.get("athlete_id") || "");
+  const athleteIds = formData
+    .getAll("athlete_ids")
+    .map((value) => String(value || ""))
+    .filter(Boolean);
+  const fallbackAthleteId = String(formData.get("athlete_id") || "");
+  const selectedAthleteIds = Array.from(
+    new Set(athleteIds.length > 0 ? athleteIds : [fallbackAthleteId].filter(Boolean))
+  );
   const training_date = String(formData.get("training_date") || "");
   const location = String(formData.get("location") || "");
   const session_type = String(formData.get("session_type") || "");
   const weather = String(formData.get("weather") || "otro");
 
   const equipment_profile_id =
-    String(formData.get("equipment_profile_id") || "") || null;
+    selectedAthleteIds.length === 1
+      ? String(formData.get("equipment_profile_id") || "") || null
+      : null;
 
   const brace_height_cm = formData.get("brace_height_cm")
     ? Number(formData.get("brace_height_cm"))
@@ -159,51 +168,74 @@ export async function createTraining(formData: FormData) {
   const objective = String(formData.get("objective") || "");
   const coach_notes = String(formData.get("coach_notes") || "");
 
-  if (!athlete_id || !training_date) {
+  if (selectedAthleteIds.length === 0 || !training_date) {
     throw new Error("Faltan datos obligatorios para crear el entrenamiento");
   }
 
-  const { data: athleteProfile, error: athleteError } = await supabase
+  const { data: athleteProfiles, error: athleteError } = await supabase
     .from("athlete_profiles")
-    .select("club_id, coach_id")
-    .eq("id", athlete_id)
-    .single();
+    .select("id, club_id, coach_id")
+    .in("id", selectedAthleteIds);
 
   if (athleteError) {
     console.error(athleteError);
     throw new Error("No se pudo obtener la información del atleta");
   }
 
-  if (
-    currentUser.role === "coach" &&
-    athleteProfile?.club_id !== currentUser.club_id
-  ) {
+  if ((athleteProfiles?.length || 0) !== selectedAthleteIds.length) {
+    throw new Error("Uno o mas atletas no fueron encontrados.");
+  }
+
+  const outOfScopeAthlete = athleteProfiles?.find(
+    (athleteProfile) =>
+      currentUser.role === "coach" &&
+      athleteProfile?.club_id !== currentUser.club_id
+  );
+
+  if (outOfScopeAthlete) {
     throw new Error("Solo puedes crear entrenamientos para atletas de tu club.");
   }
 
-  const { data: training, error: trainingError } = await supabase
-    .from("training_sessions")
-    .insert({
-      athlete_id,
-      club_id: athleteProfile?.club_id || null,
-      coach_id:
-        currentUser.role === "coach"
-          ? user.id
-          : athleteProfile?.coach_id || null,
-      equipment_profile_id,
-      brace_height_cm,
-      training_date,
-      location,
-      session_type,
-      weather,
-      wind_speed_kmh,
-      temperature_c,
-      objective,
-      coach_notes,
-      status: "active",
-    })
-    .select("id")
-    .single();
+  const validationRounds = getTrainingRoundsPayload(
+    formData,
+    "00000000-0000-0000-0000-000000000000"
+  );
+  const invalidConfigurationRound = validationRounds.find(
+    (round) =>
+      !round.distance_meters ||
+      !round.target_size_cm ||
+      !round.total_series ||
+      !round.arrows_per_series
+  );
+
+  if (invalidConfigurationRound) {
+    throw new Error("Completa distancia, diana, series y flechas de cada ronda.");
+  }
+
+  for (const athleteProfile of athleteProfiles || []) {
+    const { data: training, error: trainingError } = await supabase
+      .from("training_sessions")
+      .insert({
+        athlete_id: athleteProfile.id,
+        club_id: athleteProfile?.club_id || null,
+        coach_id:
+          currentUser.role === "coach"
+            ? user.id
+            : athleteProfile?.coach_id || null,
+        equipment_profile_id,
+        brace_height_cm,
+        training_date,
+        location,
+        session_type,
+        weather,
+        wind_speed_kmh,
+        temperature_c,
+        objective,
+        coach_notes,
+        status: "active",
+      })
+      .select("id")
+      .single();
 
   if (trainingError || !training) {
     console.error(trainingError);
@@ -247,7 +279,10 @@ export async function createTraining(formData: FormData) {
     }
   }
 
+  }
+
   revalidatePath("/trainings");
+  revalidatePath("/agenda");
 }
 
 export async function deleteTraining(formData: FormData) {
