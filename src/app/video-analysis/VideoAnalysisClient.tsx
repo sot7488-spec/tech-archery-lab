@@ -36,6 +36,30 @@ type Metric = {
 };
 
 type AnalysisMode = "lateral" | "front_t";
+type ManualAnchorKey =
+  | "verticalTop"
+  | "crossCenter"
+  | "verticalBottom"
+  | "horizontalLeft"
+  | "horizontalRight";
+
+type ManualAnchor = {
+  x: number;
+  y: number;
+};
+
+type ManualAnchors = Record<ManualAnchorKey, ManualAnchor>;
+
+type OverlaySettings = {
+  lineWidth: number;
+  pointRadius: number;
+  glow: number;
+  verticalOffset: number;
+  horizontalOffset: number;
+  verticalTopOffset: number;
+  verticalBottomOffset: number;
+  horizontalReach: number;
+};
 
 type VideoRect = {
   x: number;
@@ -78,6 +102,30 @@ const PLAYBACK_RATES = [
 
 const LANDMARK_SMOOTHING = 0.38;
 const LANDMARK_HOLD_MS = 650;
+const DEFAULT_OVERLAY_SETTINGS: OverlaySettings = {
+  lineWidth: 3,
+  pointRadius: 3,
+  glow: 5,
+  verticalOffset: 0,
+  horizontalOffset: 0,
+  verticalTopOffset: 0.22,
+  verticalBottomOffset: 0.08,
+  horizontalReach: 0.94,
+};
+const DEFAULT_MANUAL_ANCHORS: ManualAnchors = {
+  verticalTop: { x: 0.5, y: 0.18 },
+  crossCenter: { x: 0.5, y: 0.38 },
+  verticalBottom: { x: 0.5, y: 0.88 },
+  horizontalLeft: { x: 0.06, y: 0.38 },
+  horizontalRight: { x: 0.94, y: 0.38 },
+};
+const MANUAL_ANCHOR_LABELS: Record<ManualAnchorKey, string> = {
+  verticalTop: "Superior",
+  crossCenter: "Centro",
+  verticalBottom: "Inferior",
+  horizontalLeft: "Izq",
+  horizontalRight: "Der",
+};
 
 function getVideoContentRect(
   video: HTMLVideoElement,
@@ -160,7 +208,7 @@ function drawSegment(
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.shadowColor = color;
-  ctx.shadowBlur = 14;
+  ctx.shadowBlur = 6;
   ctx.beginPath();
 
   indexes.forEach((index, pointIndex) => {
@@ -180,7 +228,9 @@ function drawPoint(
   ctx: CanvasRenderingContext2D,
   rect: VideoRect,
   landmark: Landmark,
-  color: string
+  color: string,
+  radius = 3,
+  glow = 5
 ) {
   const point = toPoint(landmark, rect);
 
@@ -189,9 +239,9 @@ function drawPoint(
   ctx.strokeStyle = "#020617";
   ctx.lineWidth = 2;
   ctx.shadowColor = color;
-  ctx.shadowBlur = 12;
+  ctx.shadowBlur = glow;
   ctx.beginPath();
-  ctx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+  ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
   ctx.restore();
@@ -202,14 +252,15 @@ function drawFreeLine(
   from: { x: number; y: number },
   to: { x: number; y: number },
   color: string,
-  width = 7
+  width = 3,
+  glow = 5
 ) {
   ctx.save();
   ctx.strokeStyle = color;
   ctx.lineWidth = width;
   ctx.lineCap = "round";
   ctx.shadowColor = color;
-  ctx.shadowBlur = 12;
+  ctx.shadowBlur = glow;
   ctx.beginPath();
   ctx.moveTo(from.x, from.y);
   ctx.lineTo(to.x, to.y);
@@ -221,6 +272,13 @@ function normalizedPoint(landmark: Landmark) {
   return {
     x: landmark.x,
     y: landmark.y,
+  };
+}
+
+function anchorToCanvas(anchor: ManualAnchor, rect: VideoRect) {
+  return {
+    x: rect.x + anchor.x * rect.width,
+    y: rect.y + anchor.y * rect.height,
   };
 }
 
@@ -273,6 +331,13 @@ export default function VideoAnalysisClient() {
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>("lateral");
   const [bowArm, setBowArm] = useState<"left" | "right">("left");
   const [playbackRate, setPlaybackRateState] = useState(1);
+  const [overlaySettings, setOverlaySettings] = useState<OverlaySettings>(
+    DEFAULT_OVERLAY_SETTINGS
+  );
+  const [manualAnchorMode, setManualAnchorMode] = useState(false);
+  const [manualAnchors, setManualAnchors] = useState<ManualAnchors>(
+    DEFAULT_MANUAL_ANCHORS
+  );
   const [metrics, setMetrics] = useState<Metric[]>([
     { label: "Linea de hombros", value: "-" },
     { label: "Linea de cadera", value: "-" },
@@ -351,7 +416,18 @@ export default function VideoAnalysisClient() {
     const frameId = requestAnimationFrame(() => analyzeCurrentFrame());
 
     return () => cancelAnimationFrame(frameId);
-  }, [analysisMode, bowArm]);
+  }, [analysisMode, bowArm, overlaySettings, manualAnchorMode, manualAnchors]);
+
+  function updateOverlaySetting(key: keyof OverlaySettings, value: number) {
+    setOverlaySettings((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  }
+
+  function resetManualAnchors() {
+    setManualAnchors(DEFAULT_MANUAL_ANCHORS);
+  }
 
   function handleVideoUpload(file: File | null) {
     if (!file) return;
@@ -391,6 +467,47 @@ export default function VideoAnalysisClient() {
     if (videoRef.current) {
       videoRef.current.playbackRate = rate;
     }
+  }
+
+  function getAnchorStyle(anchor: ManualAnchor) {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || !canvas.width || !canvas.height) {
+      return { left: `${anchor.x * 100}%`, top: `${anchor.y * 100}%` };
+    }
+
+    const rect = getVideoContentRect(video, canvas);
+    const point = anchorToCanvas(anchor, rect);
+
+    return {
+      left: `${(point.x / canvas.width) * 100}%`,
+      top: `${(point.y / canvas.height) * 100}%`,
+    };
+  }
+
+  function updateManualAnchorFromPointer(
+    key: ManualAnchorKey,
+    event: React.PointerEvent<HTMLElement>
+  ) {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || !canvas.width || !canvas.height) return;
+
+    const canvasBox = canvas.getBoundingClientRect();
+    const videoRect = getVideoContentRect(video, canvas);
+    const canvasX =
+      ((event.clientX - canvasBox.left) / canvasBox.width) * canvas.width;
+    const canvasY =
+      ((event.clientY - canvasBox.top) / canvasBox.height) * canvas.height;
+    const nextAnchor = {
+      x: Math.min(1, Math.max(0, (canvasX - videoRect.x) / videoRect.width)),
+      y: Math.min(1, Math.max(0, (canvasY - videoRect.y) / videoRect.height)),
+    };
+
+    setManualAnchors((current) => ({
+      ...current,
+      [key]: nextAnchor,
+    }));
   }
 
   function analyzeCurrentFrame() {
@@ -456,7 +573,17 @@ export default function VideoAnalysisClient() {
     const video = videoRef.current;
     const videoRect = video ? getVideoContentRect(video, canvas) : null;
 
-    if (!landmarks.length || !videoRect) {
+    if (!videoRect) {
+      setConfidence(0);
+      return;
+    }
+
+    if (analysisMode === "front_t" && manualAnchorMode) {
+      drawManualFrontTAnalysis(ctx, videoRect, isHeldFrame);
+      return;
+    }
+
+    if (!landmarks.length) {
       setConfidence(0);
       return;
     }
@@ -503,7 +630,7 @@ export default function VideoAnalysisClient() {
       landmarks,
       [LANDMARKS.leftShoulder, LANDMARKS.rightShoulder],
       "#22d3ee",
-      6
+      overlaySettings.lineWidth
     );
     drawSegment(
       ctx,
@@ -511,17 +638,17 @@ export default function VideoAnalysisClient() {
       landmarks,
       [LANDMARKS.leftHip, LANDMARKS.rightHip],
       "#34d399",
-      6
+      overlaySettings.lineWidth
     );
-    drawSegment(ctx, videoRect, landmarks, bowArmIndexes, "#facc15", 7);
-    drawSegment(ctx, videoRect, landmarks, stringArmIndexes, "#c084fc", 7);
+    drawSegment(ctx, videoRect, landmarks, bowArmIndexes, "#facc15", overlaySettings.lineWidth);
+    drawSegment(ctx, videoRect, landmarks, stringArmIndexes, "#c084fc", overlaySettings.lineWidth);
     drawSegment(
       ctx,
       videoRect,
       landmarks,
       [LANDMARKS.leftHip, LANDMARKS.leftKnee, LANDMARKS.leftAnkle],
       "#38bdf8",
-      4
+      Math.max(2, overlaySettings.lineWidth - 1)
     );
     drawSegment(
       ctx,
@@ -529,7 +656,7 @@ export default function VideoAnalysisClient() {
       landmarks,
       [LANDMARKS.rightHip, LANDMARKS.rightKnee, LANDMARKS.rightAnkle],
       "#38bdf8",
-      4
+      Math.max(2, overlaySettings.lineWidth - 1)
     );
     drawSegment(
       ctx,
@@ -537,7 +664,7 @@ export default function VideoAnalysisClient() {
       landmarks,
       [LANDMARKS.leftHeel, LANDMARKS.leftFoot],
       "#fb7185",
-      4
+      Math.max(2, overlaySettings.lineWidth - 1)
     );
     drawSegment(
       ctx,
@@ -545,12 +672,21 @@ export default function VideoAnalysisClient() {
       landmarks,
       [LANDMARKS.rightHeel, LANDMARKS.rightFoot],
       "#fb7185",
-      4
+      Math.max(2, overlaySettings.lineWidth - 1)
     );
 
     needed.forEach((index) => {
       const landmark = landmarks[index];
-      if (landmark) drawPoint(ctx, videoRect, landmark, "#67e8f9");
+      if (landmark) {
+        drawPoint(
+          ctx,
+          videoRect,
+          landmark,
+          "#67e8f9",
+          overlaySettings.pointRadius,
+          overlaySettings.glow
+        );
+      }
     });
 
     ctx.restore();
@@ -668,9 +804,17 @@ export default function VideoAnalysisClient() {
     };
     const shoulderWidth = distance(leftShoulder, rightShoulder);
     const verticalCenterX =
-      videoRect.x + ((shoulderCenter.x + hipCenter.x + ankleCenter.x) / 3) * videoRect.width;
-    const verticalTop = videoRect.y + Math.max(0.05, shoulderCenter.y - 0.22) * videoRect.height;
-    const verticalBottom = videoRect.y + Math.min(0.96, ankleCenter.y + 0.08) * videoRect.height;
+      videoRect.x +
+      ((shoulderCenter.x + hipCenter.x + ankleCenter.x) / 3) * videoRect.width +
+      overlaySettings.verticalOffset * videoRect.width;
+    const verticalTop =
+      videoRect.y +
+      Math.max(0.02, shoulderCenter.y - overlaySettings.verticalTopOffset) *
+        videoRect.height;
+    const verticalBottom =
+      videoRect.y +
+      Math.min(0.98, ankleCenter.y + overlaySettings.verticalBottomOffset) *
+        videoRect.height;
     const bowShoulderPoint = toPoint(bowShoulder, videoRect);
     const bowWristPoint = toPoint(bowWrist, videoRect);
     const horizontalAngle = lineAngle(normalizedPoint(bowShoulder), normalizedPoint(bowWrist));
@@ -680,13 +824,23 @@ export default function VideoAnalysisClient() {
     const slope =
       (bowWristPoint.y - bowShoulderPoint.y) /
       Math.max(1, bowWristPoint.x - bowShoulderPoint.x);
+    const horizontalStart = (1 - overlaySettings.horizontalReach) / 2;
+    const horizontalEnd = 1 - horizontalStart;
+    const horizontalBaseY =
+      bowShoulderPoint.y + overlaySettings.horizontalOffset * videoRect.height;
     const horizontalFrom = {
-      x: videoRect.x + videoRect.width * 0.03,
-      y: bowShoulderPoint.y + slope * (videoRect.x + videoRect.width * 0.03 - bowShoulderPoint.x),
+      x: videoRect.x + videoRect.width * horizontalStart,
+      y:
+        horizontalBaseY +
+        slope *
+          (videoRect.x + videoRect.width * horizontalStart - bowShoulderPoint.x),
     };
     const horizontalTo = {
-      x: videoRect.x + videoRect.width * 0.97,
-      y: bowShoulderPoint.y + slope * (videoRect.x + videoRect.width * 0.97 - bowShoulderPoint.x),
+      x: videoRect.x + videoRect.width * horizontalEnd,
+      y:
+        horizontalBaseY +
+        slope *
+          (videoRect.x + videoRect.width * horizontalEnd - bowShoulderPoint.x),
     };
     const bodyDeviation = shoulderWidth
       ? Number((Math.abs(shoulderCenter.x - hipCenter.x) / shoulderWidth * 100).toFixed(1))
@@ -706,9 +860,17 @@ export default function VideoAnalysisClient() {
       { x: verticalCenterX, y: verticalTop },
       { x: verticalCenterX, y: verticalBottom },
       "#facc15",
-      7
+      overlaySettings.lineWidth,
+      overlaySettings.glow
     );
-    drawFreeLine(ctx, horizontalFrom, horizontalTo, "#facc15", 7);
+    drawFreeLine(
+      ctx,
+      horizontalFrom,
+      horizontalTo,
+      "#facc15",
+      overlaySettings.lineWidth,
+      overlaySettings.glow
+    );
 
     drawSegment(
       ctx,
@@ -716,7 +878,7 @@ export default function VideoAnalysisClient() {
       landmarks,
       [LANDMARKS.leftShoulder, LANDMARKS.rightShoulder],
       "#fde047",
-      4
+      Math.max(2, overlaySettings.lineWidth - 1)
     );
     drawSegment(
       ctx,
@@ -726,12 +888,21 @@ export default function VideoAnalysisClient() {
        bowArm === "left" ? LANDMARKS.leftElbow : LANDMARKS.rightElbow,
        bowArm === "left" ? LANDMARKS.leftWrist : LANDMARKS.rightWrist],
       "#facc15",
-      5
+      Math.max(2, overlaySettings.lineWidth - 1)
     );
 
     needed.forEach((index) => {
       const landmark = landmarks[index];
-      if (landmark) drawPoint(ctx, videoRect, landmark, "#fde047");
+      if (landmark) {
+        drawPoint(
+          ctx,
+          videoRect,
+          landmark,
+          "#fde047",
+          overlaySettings.pointRadius,
+          overlaySettings.glow
+        );
+      }
     });
     ctx.restore();
 
@@ -763,6 +934,97 @@ export default function VideoAnalysisClient() {
           stanceRatio >= 0.85 && stanceRatio <= 1.35
             ? "text-emerald-300"
             : "text-yellow-200",
+      },
+    ]);
+  }
+
+  function drawManualFrontTAnalysis(
+    ctx: CanvasRenderingContext2D,
+    videoRect: VideoRect,
+    isHeldFrame: boolean
+  ) {
+    const verticalTop = anchorToCanvas(manualAnchors.verticalTop, videoRect);
+    const crossCenter = anchorToCanvas(manualAnchors.crossCenter, videoRect);
+    const verticalBottom = anchorToCanvas(manualAnchors.verticalBottom, videoRect);
+    const horizontalLeft = anchorToCanvas(manualAnchors.horizontalLeft, videoRect);
+    const horizontalRight = anchorToCanvas(manualAnchors.horizontalRight, videoRect);
+    const heldOpacity = isHeldFrame ? 0.7 : 1;
+    const verticalAngle = lineAngle(manualAnchors.verticalTop, manualAnchors.verticalBottom);
+    const verticalDeviation = Number(
+      Math.abs(90 - Math.abs(verticalAngle)).toFixed(1)
+    );
+    const horizontalAngle = lineAngle(
+      manualAnchors.horizontalLeft,
+      manualAnchors.horizontalRight
+    );
+    const horizontalDeviation = Number(
+      Math.min(
+        Math.abs(horizontalAngle),
+        Math.abs(180 - Math.abs(horizontalAngle))
+      ).toFixed(1)
+    );
+
+    setConfidence(100);
+
+    ctx.save();
+    ctx.globalAlpha = heldOpacity;
+    drawFreeLine(
+      ctx,
+      verticalTop,
+      verticalBottom,
+      "#facc15",
+      overlaySettings.lineWidth,
+      overlaySettings.glow
+    );
+    drawFreeLine(
+      ctx,
+      horizontalLeft,
+      horizontalRight,
+      "#facc15",
+      overlaySettings.lineWidth,
+      overlaySettings.glow
+    );
+    [
+      verticalTop,
+      crossCenter,
+      verticalBottom,
+      horizontalLeft,
+      horizontalRight,
+    ].forEach((point) => {
+      ctx.fillStyle = "#fde047";
+      ctx.strokeStyle = "#020617";
+      ctx.lineWidth = 2;
+      ctx.shadowColor = "#facc15";
+      ctx.shadowBlur = overlaySettings.glow;
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, overlaySettings.pointRadius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    });
+    ctx.restore();
+
+    setMetrics([
+      {
+        label: "Linea horizontal T",
+        value: `${horizontalDeviation} deg`,
+        tone: metricTone(horizontalDeviation, 4),
+      },
+      {
+        label: "Eje vertical manual",
+        value: `${verticalDeviation} deg`,
+        tone: metricTone(verticalDeviation, 4),
+      },
+      {
+        label: "Centro T",
+        value: `${Math.round(manualAnchors.crossCenter.x * 100)}% / ${Math.round(
+          manualAnchors.crossCenter.y * 100
+        )}%`,
+        tone: "text-cyan-300",
+      },
+      {
+        label: "Anclajes",
+        value: "Manual",
+        tone: "text-yellow-200",
       },
     ]);
   }
@@ -876,6 +1138,39 @@ export default function VideoAnalysisClient() {
                     ref={canvasRef}
                     className="pointer-events-none absolute inset-0 h-full w-full"
                   />
+                  {analysisMode === "front_t" && manualAnchorMode && (
+                    <div className="absolute inset-0 z-10">
+                      {(Object.keys(manualAnchors) as ManualAnchorKey[]).map(
+                        (key) => (
+                          <button
+                            key={key}
+                            type="button"
+                            onPointerDown={(event) => {
+                              event.currentTarget.setPointerCapture(
+                                event.pointerId
+                              );
+                              updateManualAnchorFromPointer(key, event);
+                            }}
+                            onPointerMove={(event) => {
+                              if (event.buttons !== 1) return;
+                              updateManualAnchorFromPointer(key, event);
+                            }}
+                            onPointerUp={(event) => {
+                              event.currentTarget.releasePointerCapture(
+                                event.pointerId
+                              );
+                              analyzeCurrentFrame();
+                            }}
+                            className="absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-slate-950 bg-yellow-300 text-[9px] font-black text-slate-950 shadow-[0_0_18px_rgba(250,204,21,0.55)]"
+                            style={getAnchorStyle(manualAnchors[key])}
+                            title={MANUAL_ANCHOR_LABELS[key]}
+                          >
+                            {MANUAL_ANCHOR_LABELS[key].slice(0, 1)}
+                          </button>
+                        )
+                      )}
+                    </div>
+                  )}
                 </>
               ) : (
                 <div className="flex min-h-[460px] flex-col items-center justify-center gap-4 p-8 text-center">
@@ -949,6 +1244,147 @@ export default function VideoAnalysisClient() {
                   tu referencia. Valida que el overlay amarillo coincida con el
                   brazo que sostiene el arco.
                 </div>
+
+                {analysisMode === "front_t" && (
+                  <div className="rounded-2xl border border-yellow-300/15 bg-yellow-300/[0.07] p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-200">
+                          Anclajes manuales
+                        </p>
+                        <p className="mt-2 text-sm font-bold leading-6 text-slate-400">
+                          Activa puntos arrastrables para definir manualmente la
+                          posicion de la cruz T. Util cuando el video tiene
+                          perspectiva, arco tapando articulaciones o landmarks
+                          inestables.
+                        </p>
+                      </div>
+                      <label className="relative inline-flex cursor-pointer items-center">
+                        <input
+                          type="checkbox"
+                          checked={manualAnchorMode}
+                          onChange={(event) => {
+                            setManualAnchorMode(event.target.checked);
+                            requestAnimationFrame(analyzeCurrentFrame);
+                          }}
+                          className="peer sr-only"
+                        />
+                        <span className="h-7 w-12 rounded-full border border-white/10 bg-slate-800 transition peer-checked:bg-yellow-300" />
+                        <span className="absolute left-1 h-5 w-5 rounded-full bg-white transition peer-checked:translate-x-5 peer-checked:bg-slate-950" />
+                      </label>
+                    </div>
+
+                    {manualAnchorMode && (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={resetManualAnchors}
+                          className="rounded-xl border border-yellow-200/20 bg-yellow-200/10 px-3 py-2 text-xs font-black text-yellow-100 transition hover:bg-yellow-200 hover:text-slate-950"
+                        >
+                          Reset anclajes
+                        </button>
+                        <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-bold text-slate-400">
+                          Arrastra: Superior, Centro, Inferior, Izq, Der
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.25em] text-cyan-300">
+                        Overlay
+                      </p>
+                      <p className="mt-1 text-sm font-bold text-slate-500">
+                        Ajustes visuales y anclajes
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setOverlaySettings(DEFAULT_OVERLAY_SETTINGS)}
+                      className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-black text-slate-300 transition hover:bg-white/20 hover:text-white"
+                    >
+                      Reset
+                    </button>
+                  </div>
+
+                  <div className="grid gap-4">
+                    <RangeControl
+                      label="Grosor linea"
+                      value={overlaySettings.lineWidth}
+                      min={1}
+                      max={8}
+                      step={0.5}
+                      display={`${overlaySettings.lineWidth}px`}
+                      onChange={(value) => updateOverlaySetting("lineWidth", value)}
+                    />
+                    <RangeControl
+                      label="Tamano puntos"
+                      value={overlaySettings.pointRadius}
+                      min={1}
+                      max={8}
+                      step={0.5}
+                      display={`${overlaySettings.pointRadius}px`}
+                      onChange={(value) => updateOverlaySetting("pointRadius", value)}
+                    />
+                    <RangeControl
+                      label="Brillo"
+                      value={overlaySettings.glow}
+                      min={0}
+                      max={18}
+                      step={1}
+                      display={`${overlaySettings.glow}`}
+                      onChange={(value) => updateOverlaySetting("glow", value)}
+                    />
+                    <RangeControl
+                      label="Anclaje vertical"
+                      value={overlaySettings.verticalOffset}
+                      min={-0.18}
+                      max={0.18}
+                      step={0.01}
+                      display={`${Math.round(overlaySettings.verticalOffset * 100)}%`}
+                      onChange={(value) => updateOverlaySetting("verticalOffset", value)}
+                    />
+                    <RangeControl
+                      label="Anclaje horizontal"
+                      value={overlaySettings.horizontalOffset}
+                      min={-0.18}
+                      max={0.18}
+                      step={0.01}
+                      display={`${Math.round(overlaySettings.horizontalOffset * 100)}%`}
+                      onChange={(value) => updateOverlaySetting("horizontalOffset", value)}
+                    />
+                    <RangeControl
+                      label="Largo superior"
+                      value={overlaySettings.verticalTopOffset}
+                      min={0.02}
+                      max={0.4}
+                      step={0.01}
+                      display={`${Math.round(overlaySettings.verticalTopOffset * 100)}%`}
+                      onChange={(value) => updateOverlaySetting("verticalTopOffset", value)}
+                    />
+                    <RangeControl
+                      label="Largo inferior"
+                      value={overlaySettings.verticalBottomOffset}
+                      min={0.02}
+                      max={0.25}
+                      step={0.01}
+                      display={`${Math.round(overlaySettings.verticalBottomOffset * 100)}%`}
+                      onChange={(value) => updateOverlaySetting("verticalBottomOffset", value)}
+                    />
+                    <RangeControl
+                      label="Alcance horizontal"
+                      value={overlaySettings.horizontalReach}
+                      min={0.25}
+                      max={1}
+                      step={0.01}
+                      display={`${Math.round(overlaySettings.horizontalReach * 100)}%`}
+                      onChange={(value) => updateOverlaySetting("horizontalReach", value)}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -995,5 +1431,45 @@ function MetricCard({
       <p className="tal-metric-label">{title}</p>
       <p className={`relative z-10 mt-2 text-3xl font-black ${tone}`}>{value}</p>
     </div>
+  );
+}
+
+function RangeControl({
+  label,
+  value,
+  min,
+  max,
+  step,
+  display,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  display: string;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label className="grid gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs font-black uppercase tracking-widest text-slate-500">
+          {label}
+        </span>
+        <span className="rounded-lg border border-cyan-300/15 bg-cyan-300/10 px-2 py-1 text-xs font-black text-cyan-100">
+          {display}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-800 accent-cyan-300"
+      />
+    </label>
   );
 }
