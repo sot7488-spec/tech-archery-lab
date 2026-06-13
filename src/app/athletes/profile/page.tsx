@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { MessageSquare, Video } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 export default function AthleteProfilePage() {
@@ -19,6 +20,7 @@ export default function AthleteProfilePage() {
   const [associationId, setAssociationId] = useState("");
   const [federationId, setFederationId] = useState("");
   const [notes, setNotes] = useState("");
+  const [videoFeedback, setVideoFeedback] = useState<any[]>([]);
 
   const [message, setMessage] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -80,6 +82,28 @@ export default function AthleteProfilePage() {
 
     const userData = Array.isArray(data.users) ? data.users[0] : data.users;
     setName(userData?.name || "");
+
+    const { data: feedbackData } = await supabase
+      .from("video_analysis_feedback")
+      .select(
+        `
+        id,
+        title,
+        feedback,
+        snapshot_data_url,
+        video_time_seconds,
+        analysis_mode,
+        created_at,
+        users!video_analysis_feedback_coach_id_fkey (
+          name
+        )
+      `
+      )
+      .eq("athlete_id", data.id)
+      .order("created_at", { ascending: false })
+      .limit(6);
+
+    setVideoFeedback(feedbackData || []);
 
     setLoading(false);
   }
@@ -273,6 +297,77 @@ export default function AthleteProfilePage() {
               {saving ? "Guardando..." : "Guardar perfil"}
             </button>
           </form>
+        </div>
+
+        <div className="mt-6 rounded-[2rem] border border-emerald-400/20 bg-white/[0.05] p-6 shadow-[0_0_60px_rgba(16,185,129,0.10)] backdrop-blur-xl">
+          <div className="mb-5 flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-300/20 bg-emerald-300/10 text-emerald-200">
+              <Video size={20} />
+            </span>
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.3em] text-emerald-300">
+                TAL Coach Review
+              </p>
+              <h2 className="text-2xl font-black">Retroalimentacion tecnica</h2>
+            </div>
+          </div>
+
+          {videoFeedback.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              {videoFeedback.map((item) => {
+                const coachInfo = Array.isArray(item.users)
+                  ? item.users[0]
+                  : item.users;
+                const seconds = Number(item.video_time_seconds || 0);
+
+                return (
+                  <article
+                    key={item.id}
+                    className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-950/60"
+                  >
+                    <img
+                      src={item.snapshot_data_url}
+                      alt={item.title || "Retroalimentacion tecnica"}
+                      className="aspect-video w-full bg-black object-contain"
+                    />
+                    <div className="space-y-3 p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">
+                            Analisis tecnico
+                          </p>
+                          <h3 className="mt-1 text-lg font-black">
+                            {item.title || "Analisis tecnico"}
+                          </h3>
+                        </div>
+                        <span className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-bold text-slate-300">
+                          {Math.floor(seconds / 60)}:
+                          {String(Math.floor(seconds % 60)).padStart(2, "0")}
+                        </span>
+                      </div>
+
+                      <p className="whitespace-pre-line text-sm leading-6 text-slate-300">
+                        {item.feedback}
+                      </p>
+
+                      <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500">
+                        <MessageSquare size={14} />
+                        <span>{coachInfo?.name || "Coach"}</span>
+                        <span>Â·</span>
+                        <span>
+                          {new Date(item.created_at).toLocaleDateString("es-MX")}
+                        </span>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-sm font-bold text-slate-400">
+              Aun no tienes retroalimentacion tecnica por video.
+            </p>
+          )}
         </div>
       </section>
     </main>

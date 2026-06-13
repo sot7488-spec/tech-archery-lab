@@ -20,11 +20,13 @@ import {
   Gauge,
   Mail,
   Medal,
+  MessageSquare,
   Phone,
   Sparkles,
   Target,
   Trophy,
   UserRound,
+  Video,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -143,6 +145,28 @@ export default async function AthleteProfilePage({
     : { data: [] };
 
   const supportStaff = supportStaffRaw || [];
+
+  const { data: videoFeedbackRaw } = await supabase
+    .from("video_analysis_feedback")
+    .select(
+      `
+      id,
+      title,
+      feedback,
+      snapshot_data_url,
+      video_time_seconds,
+      analysis_mode,
+      created_at,
+      users!video_analysis_feedback_coach_id_fkey (
+        name
+      )
+    `
+    )
+    .eq("athlete_id", athlete.id)
+    .order("created_at", { ascending: false })
+    .limit(6);
+
+  const videoFeedback = videoFeedbackRaw || [];
 
   const trainings = athlete.training_sessions || [];
   const getScoringSeries = (training: any) =>
@@ -720,6 +744,85 @@ export default async function AthleteProfilePage({
             <p className="text-slate-400">Aún no hay series registradas.</p>
           )}
         </div>
+      </section>
+
+      <section className="tal-chart-card mb-6">
+        <div className="mb-5 flex items-center justify-between gap-4">
+          <h3 className="flex items-center gap-3 text-2xl font-black text-white tal-text-glow">
+            <span className="tal-metric-icon mb-0">
+              <Video size={20} />
+            </span>
+            Retroalimentacion tecnica
+          </h3>
+
+          {canManageAthlete && (
+            <Link
+              href="/video-analysis"
+              className="rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-emerald-100 transition hover:bg-emerald-300 hover:text-slate-950"
+            >
+              Nuevo analisis
+            </Link>
+          )}
+        </div>
+
+        {videoFeedback.length > 0 ? (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {videoFeedback.map((item: any) => {
+              const coachInfo = Array.isArray(item.users)
+                ? item.users[0]
+                : item.users;
+              const seconds = Number(item.video_time_seconds || 0);
+
+              return (
+                <article
+                  key={item.id}
+                  className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.04]"
+                >
+                  <img
+                    src={item.snapshot_data_url}
+                    alt={item.title || "Retroalimentacion tecnica"}
+                    className="aspect-video w-full bg-black object-contain"
+                  />
+
+                  <div className="space-y-3 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">
+                          Analisis tecnico
+                        </p>
+                        <h4 className="mt-1 text-xl font-black text-white">
+                          {item.title || "Analisis tecnico"}
+                        </h4>
+                      </div>
+
+                      <span className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-bold text-slate-300">
+                        {Math.floor(seconds / 60)}:
+                        {String(Math.floor(seconds % 60)).padStart(2, "0")}
+                      </span>
+                    </div>
+
+                    <p className="whitespace-pre-line text-sm font-medium leading-6 text-slate-300">
+                      {item.feedback}
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500">
+                      <MessageSquare size={14} />
+                      <span>{coachInfo?.name || "Coach"}</span>
+                      <span>Â·</span>
+                      <span>
+                        {new Date(item.created_at).toLocaleDateString("es-MX")}
+                      </span>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5 text-sm font-bold text-slate-400">
+            Aun no hay retroalimentacion tecnica por video para este atleta.
+          </div>
+        )}
       </section>
 
       <section className="mb-6 grid grid-cols-1 gap-5 lg:grid-cols-2">

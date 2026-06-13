@@ -8,9 +8,11 @@ import {
   FileVideo,
   Gauge,
   Loader2,
+  MessageSquare,
   Pause,
   Play,
   Ruler,
+  Save,
   ScanLine,
   Settings2,
   ShieldCheck,
@@ -20,7 +22,9 @@ import {
   Target,
   Timer,
   Upload,
+  X,
 } from "lucide-react";
+import { createVideoAnalysisFeedback } from "./actions";
 
 type Landmark = {
   x: number;
@@ -41,6 +45,21 @@ type Metric = {
   label: string;
   value: string;
   tone?: string;
+};
+
+type FeedbackAthlete = {
+  id: string;
+  club_id?: string | null;
+  users?:
+    | {
+        name?: string | null;
+        email?: string | null;
+      }
+    | {
+        name?: string | null;
+        email?: string | null;
+      }[]
+    | null;
 };
 
 type AnalysisMode = "lateral" | "front_t";
@@ -513,7 +532,13 @@ function smoothLandmarks(
   });
 }
 
-export default function VideoAnalysisClient() {
+export default function VideoAnalysisClient({
+  athletes,
+  canCreateFeedback,
+}: {
+  athletes: FeedbackAthlete[];
+  canCreateFeedback: boolean;
+}) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const topVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -577,11 +602,15 @@ export default function VideoAnalysisClient() {
     { label: "Parado", value: "-" },
   ]);
   const [topMetrics, setTopMetrics] = useState<Metric[]>([
-    { label: "Plano superior", value: "-" },
+    { label: "Tecnico v2", value: "-" },
     { label: "Referencia vertical", value: "-" },
     { label: "Linea cuerda-arco", value: "-" },
   ]);
   const [confidence, setConfidence] = useState(0);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackSnapshot, setFeedbackSnapshot] = useState("");
+  const [feedbackError, setFeedbackError] = useState("");
+  const [feedbackSaving, setFeedbackSaving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -763,7 +792,7 @@ export default function VideoAnalysisClient() {
     setTopVideoUrl(URL.createObjectURL(file));
     setActiveVideoPanel("top");
     setTopMetrics([
-      { label: "Plano superior", value: "-" },
+      { label: "Tecnico v2", value: "-" },
       { label: "Referencia vertical", value: "-" },
       { label: "Linea cuerda-arco", value: "-" },
     ]);
@@ -774,6 +803,81 @@ export default function VideoAnalysisClient() {
     topSmoothedLandmarksRef.current = null;
     lastTopValidLandmarksAtRef.current = 0;
     lastTopVideoTimeRef.current = -1;
+  }
+
+  function getFeedbackAthleteName(athlete: FeedbackAthlete) {
+    if (Array.isArray(athlete.users)) {
+      return athlete.users[0]?.name || athlete.users[0]?.email || "Atleta";
+    }
+
+    return athlete.users?.name || athlete.users?.email || "Atleta";
+  }
+
+  function captureCurrentAnalysisFrame() {
+    const video = videoRef.current;
+    const overlayCanvas = canvasRef.current;
+    if (!video || !overlayCanvas || !video.videoWidth || !overlayCanvas.width) {
+      return "";
+    }
+
+    analyzeCurrentFrame();
+
+    const outputCanvas = document.createElement("canvas");
+    outputCanvas.width = overlayCanvas.width;
+    outputCanvas.height = overlayCanvas.height;
+    const outputCtx = outputCanvas.getContext("2d");
+    if (!outputCtx) return "";
+
+    const videoRect = getVideoContentRect(video, overlayCanvas);
+
+    outputCtx.fillStyle = "#020617";
+    outputCtx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
+    outputCtx.drawImage(
+      video,
+      videoRect.x,
+      videoRect.y,
+      videoRect.width,
+      videoRect.height
+    );
+    outputCtx.drawImage(overlayCanvas, 0, 0);
+
+    return outputCanvas.toDataURL("image/jpeg", 0.82);
+  }
+
+  function openFeedbackModal() {
+    const snapshot = captureCurrentAnalysisFrame();
+
+    if (!snapshot) {
+      setFeedbackError("Pausa o carga un video antes de generar la captura.");
+      setFeedbackOpen(true);
+      return;
+    }
+
+    setFeedbackSnapshot(snapshot);
+    setFeedbackError("");
+    setFeedbackOpen(true);
+  }
+
+  async function handleCreateFeedback(formData: FormData) {
+    setFeedbackSaving(true);
+    setFeedbackError("");
+
+    try {
+      formData.set("snapshot_data_url", feedbackSnapshot);
+      formData.set("video_time_seconds", String(videoRef.current?.currentTime || 0));
+      formData.set("analysis_mode", analysisMode);
+      await createVideoAnalysisFeedback(formData);
+      setFeedbackOpen(false);
+      setFeedbackSnapshot("");
+    } catch (error) {
+      setFeedbackError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo guardar la retroalimentacion."
+      );
+    } finally {
+      setFeedbackSaving(false);
+    }
   }
 
   function resizeCanvas() {
@@ -1272,26 +1376,6 @@ export default function VideoAnalysisClient() {
     const torsoAngle = lineAngle(activeAnchors.topAnchor, activeAnchors.topBowHand);
     const drawDeviation = angleDifference(referenceAngle, drawAngle);
     const torsoDeviation = angleDifference(referenceAngle, torsoAngle);
-    const sectorRadius = Math.max(
-      24,
-      Math.hypot(bowHand.x - stringHand.x, bowHand.y - stringHand.y)
-    );
-
-    ctx.save();
-    ctx.globalAlpha = 0.28;
-    ctx.fillStyle = "#ef4444";
-    ctx.beginPath();
-    ctx.moveTo(bowHand.x, bowHand.y);
-    ctx.arc(
-      bowHand.x,
-      bowHand.y,
-      sectorRadius,
-      (referenceAngle * Math.PI) / 180,
-      (drawAngle * Math.PI) / 180
-    );
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
 
     drawFreeLine(
       ctx,
@@ -1342,7 +1426,7 @@ export default function VideoAnalysisClient() {
 
     setTopMetrics([
       {
-        label: "Plano superior",
+        label: "Tecnico v2",
         value: `${drawDeviation} deg`,
         tone: metricTone(drawDeviation, 6),
       },
@@ -1357,7 +1441,7 @@ export default function VideoAnalysisClient() {
         tone: metricTone(torsoDeviation, 10),
       },
       {
-        label: "Tracking cenital",
+        label: "Tracking tecnico v2",
         value: trackingLabel,
         tone: trackingConfidence ? "text-emerald-300" : "text-yellow-200",
       },
@@ -1930,7 +2014,7 @@ export default function VideoAnalysisClient() {
     if (reference) {
       nextMetrics.push(
         {
-          label: "Modo frontal",
+          label: "Modo tecnico",
           value: "Hibrido",
           tone: "text-yellow-200",
         }
@@ -2060,11 +2144,11 @@ export default function VideoAnalysisClient() {
                 Laboratorio de video tecnico
               </h1>
               <p className="mt-3 max-w-3xl text-sm font-bold leading-6 text-slate-400 md:text-base">
-                Analiza postura lateral, eje frontal y plano cenital con overlay
+                Analiza postura tecnica y analisis tecnico v2 con overlay
                 configurable, camara lenta y avance cuadro por cuadro.
               </p>
               <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                <PhasePill icon={Camera} label="Captura" text="Lateral, frontal o cenital" />
+                <PhasePill icon={Camera} label="Captura" text="Tecnico y tecnico v2" />
                 <PhasePill icon={ScanLine} label="Analisis" text="Pose, ejes y angulos" />
                 <PhasePill icon={SlidersHorizontal} label="Calibracion" text="Anclajes editables" />
               </div>
@@ -2112,7 +2196,7 @@ export default function VideoAnalysisClient() {
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-cyan-300">
                     <Upload size={17} />
-                    Cargar lateral/frontal
+                    Cargar analisis tecnico
                     <input
                       type="file"
                       accept="video/*"
@@ -2125,7 +2209,7 @@ export default function VideoAnalysisClient() {
 
                   <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-red-300/25 bg-red-300/10 px-5 py-3 text-sm font-black text-red-100 transition hover:bg-red-300 hover:text-slate-950">
                     <Upload size={17} />
-                    Cargar cenital
+                    Cargar tecnico v2
                     <input
                       type="file"
                       accept="video/*"
@@ -2135,6 +2219,17 @@ export default function VideoAnalysisClient() {
                       }
                     />
                   </label>
+
+                  {canCreateFeedback && videoUrl && (
+                    <button
+                      type="button"
+                      onClick={openFeedbackModal}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-300/25 bg-emerald-300/10 px-5 py-3 text-sm font-black text-emerald-100 transition hover:bg-emerald-300 hover:text-slate-950"
+                    >
+                      <MessageSquare size={17} />
+                      Retroalimentar
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -2150,7 +2245,7 @@ export default function VideoAnalysisClient() {
                           : "text-slate-300 hover:bg-white/10 hover:text-white"
                       }`}
                     >
-                      Frontal / lateral
+                      Analisis tecnico
                     </button>
                   )}
                   {topVideoUrl && (
@@ -2163,7 +2258,7 @@ export default function VideoAnalysisClient() {
                           : "text-slate-300 hover:bg-white/10 hover:text-white"
                       }`}
                     >
-                      Cenital
+                      Analisis tecnico v2
                     </button>
                   )}
                 </div>
@@ -2442,7 +2537,7 @@ export default function VideoAnalysisClient() {
               <div className="overflow-hidden rounded-[2rem] border border-red-300/15 bg-slate-950 shadow-[0_0_60px_rgba(248,113,113,0.10)]">
                 <div className="relative overflow-hidden bg-black">
                   <div className="absolute left-4 top-4 z-10 rounded-full border border-red-300/20 bg-slate-950/75 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-red-100 backdrop-blur">
-                    Cenital
+                    Tecnico v2
                   </div>
                   <video
                     ref={topVideoRef}
@@ -2518,14 +2613,14 @@ export default function VideoAnalysisClient() {
                 <div className="grid gap-4 border-t border-red-300/10 bg-red-950/10 p-4">
                   <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.22em] text-red-100">
                     <Timer size={14} />
-                    Control cenital independiente
+                    Control tecnico v2 independiente
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
                     <button
                       type="button"
                       onClick={toggleTopPlayback}
                       className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-red-300 text-red-950 transition hover:bg-red-200"
-                      title={isTopPlaying ? "Pausar cenital" : "Reproducir cenital"}
+                      title={isTopPlaying ? "Pausar tecnico v2" : "Reproducir tecnico v2"}
                     >
                       {isTopPlaying ? <Pause size={20} /> : <Play size={20} />}
                     </button>
@@ -2533,7 +2628,7 @@ export default function VideoAnalysisClient() {
                       type="button"
                       onClick={() => seekTopBy(-1)}
                       className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-slate-200 transition hover:bg-white/10"
-                      title="Retroceder cenital 1 segundo"
+                      title="Retroceder tecnico v2 1 segundo"
                     >
                       <SkipBack size={19} />
                     </button>
@@ -2555,7 +2650,7 @@ export default function VideoAnalysisClient() {
                       type="button"
                       onClick={() => seekTopBy(1)}
                       className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-slate-200 transition hover:bg-white/10"
-                      title="Avanzar cenital 1 segundo"
+                      title="Avanzar tecnico v2 1 segundo"
                     >
                       <SkipForward size={19} />
                     </button>
@@ -2573,8 +2668,8 @@ export default function VideoAnalysisClient() {
                           }`}
                           title={
                             rate.value === 1
-                              ? "Velocidad normal cenital"
-                              : `Camara lenta cenital ${rate.label}`
+                              ? "Velocidad normal tecnico v2"
+                              : `Camara lenta tecnico v2 ${rate.label}`
                           }
                         >
                           {rate.label}
@@ -2673,22 +2768,17 @@ export default function VideoAnalysisClient() {
                   </p>
                 </div>
 
-                <label className="space-y-2">
-                  <span className="text-xs font-black uppercase tracking-widest text-slate-500">
+                <div className="rounded-2xl border border-cyan-300/15 bg-cyan-300/10 p-4">
+                  <p className="text-xs font-black uppercase tracking-widest text-cyan-300">
                     Tipo de analisis
-                  </span>
-                  <select
-                    value={analysisMode}
-                    onChange={(event) => {
-                      setAnalysisMode(event.target.value as AnalysisMode);
-                      requestAnimationFrame(analyzeCurrentFrame);
-                    }}
-                    className="tal-input"
-                  >
-                    <option value="lateral">Lateral tecnico</option>
-                    <option value="front_t">Frontal T</option>
-                  </select>
-                </label>
+                  </p>
+                  <p className="mt-2 text-sm font-black text-white">
+                    Analisis tecnico
+                  </p>
+                  <p className="mt-1 text-xs font-bold leading-5 text-slate-400">
+                    Overlay automatico de postura con referencias libres.
+                  </p>
+                </div>
 
                 <label className="space-y-2">
                   <span className="text-xs font-black uppercase tracking-widest text-slate-500">
@@ -2707,20 +2797,12 @@ export default function VideoAnalysisClient() {
                   </select>
                 </label>
 
-                <div className="rounded-2xl border border-cyan-300/15 bg-cyan-300/10 p-4 text-sm font-bold leading-6 text-cyan-50">
-                  En modo Frontal T, TAL dibuja una linea vertical por el eje
-                  corporal y una linea horizontal por el brazo de arco. Si
-                  activas referencias, tus lineas manuales quedan como regla de
-                  comparacion contra hombros, brazos, manos, cadera, torso y
-                  cabeza detectados automaticamente.
-                </div>
-
-                {analysisMode === "front_t" && (
-                  <div className="rounded-2xl border border-yellow-300/15 bg-yellow-300/[0.07] p-4">
+                {false && (
+                  <div className="hidden rounded-2xl border border-yellow-300/15 bg-yellow-300/[0.07] p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-xs font-black uppercase tracking-[0.25em] text-yellow-200">
-                          Referencia frontal hibrida
+                          Referencia tecnica
                         </p>
                         <p className="mt-2 text-sm font-bold leading-6 text-slate-400">
                           Marca vertical, horizontal y punto central. TAL
@@ -2786,8 +2868,8 @@ export default function VideoAnalysisClient() {
                   </div>
                 )}
 
-                {analysisMode === "front_t" && (
-                  <div className="rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.07] p-4">
+                {false && (
+                  <div className="hidden rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.07] p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-xs font-black uppercase tracking-[0.25em] text-emerald-200">
@@ -2795,7 +2877,7 @@ export default function VideoAnalysisClient() {
                         </p>
                         <p className="mt-2 text-sm font-bold leading-6 text-slate-400">
                           Define manualmente cabeza, hombros, codos, manos,
-                          cadera y pies. Frontal T usara estos puntos para
+                          cadera y pies. El analisis tecnico usara estos puntos para
                           generar la T del cuerpo.
                         </p>
                       </div>
@@ -3074,7 +3156,7 @@ export default function VideoAnalysisClient() {
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-xs font-black uppercase tracking-[0.25em] text-red-200">
-                          Plano cenital
+                          Analisis tecnico v2
                         </p>
                         <p className="mt-2 text-sm font-bold leading-6 text-slate-400">
                           Detecta manos y torso con MediaPipe o usa anclajes
@@ -3093,7 +3175,7 @@ export default function VideoAnalysisClient() {
 
                     <label className="mt-4 grid gap-2">
                       <span className="text-xs font-black uppercase tracking-widest text-slate-500">
-                        Tracking cenital
+                        Tracking tecnico v2
                       </span>
                       <select
                         value={topTrackingMode}
@@ -3164,11 +3246,11 @@ export default function VideoAnalysisClient() {
                   cuerpo completo y lente a la altura del pecho/cadera.
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-                  <span className="text-cyan-200">Frontal:</span> arquero
-                  centrado, hombros visibles y sin contraluz.
+                  <span className="text-cyan-200">Tecnico:</span> arquero
+                  centrado, cuerpo visible y sin contraluz.
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-                  <span className="text-red-100">Cenital:</span> usa los
+                  <span className="text-red-100">Tecnico v2:</span> usa los
                   anclajes manuales; desde arriba la pose automatica es menos
                   confiable.
                 </div>
@@ -3209,6 +3291,131 @@ export default function VideoAnalysisClient() {
           </aside>
         </section>
       </div>
+
+      {feedbackOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-4 backdrop-blur-xl">
+          <div className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] border border-emerald-300/20 bg-slate-950 text-white shadow-[0_0_90px_rgba(16,185,129,0.18)]">
+            <div className="pointer-events-none absolute right-[-90px] top-[-90px] h-72 w-72 rounded-full bg-emerald-300/10 blur-3xl" />
+
+            <div className="relative z-10 flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-emerald-300/20 bg-emerald-300/10 text-emerald-200">
+                  <MessageSquare size={22} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.35em] text-emerald-300">
+                    TAL Coach Review
+                  </p>
+                  <h2 className="mt-0.5 text-2xl font-black text-white">
+                    Retroalimentacion tecnica
+                  </h2>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setFeedbackOpen(false)}
+                className="rounded-xl border border-white/10 bg-white/10 p-2 text-slate-300 transition hover:bg-white/20 hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form
+              action={handleCreateFeedback}
+              className="relative z-10 grid flex-1 gap-4 overflow-y-auto p-5 lg:grid-cols-[1.1fr_0.9fr]"
+            >
+              <input type="hidden" name="snapshot_data_url" value={feedbackSnapshot} />
+              <input
+                type="hidden"
+                name="video_time_seconds"
+                value={videoRef.current?.currentTime || 0}
+              />
+              <input type="hidden" name="analysis_mode" value={analysisMode} />
+
+              <section className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-black">
+                {feedbackSnapshot ? (
+                  <img
+                    src={feedbackSnapshot}
+                    alt="Captura del analisis tecnico"
+                    className="h-full max-h-[62vh] w-full object-contain"
+                  />
+                ) : (
+                  <div className="flex min-h-[320px] items-center justify-center p-8 text-center text-sm font-bold text-slate-500">
+                    No hay captura disponible. Pausa un video y vuelve a generar
+                    la retroalimentacion.
+                  </div>
+                )}
+              </section>
+
+              <section className="space-y-4 rounded-[1.5rem] border border-white/10 bg-white/[0.035] p-4">
+                <label className="grid gap-2">
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-500">
+                    Atleta
+                  </span>
+                  <select name="athlete_id" className="tal-input" required>
+                    <option value="">Selecciona atleta</option>
+                    {athletes.map((athlete) => (
+                      <option key={athlete.id} value={athlete.id}>
+                        {getFeedbackAthleteName(athlete)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="grid gap-2">
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-500">
+                    Titulo
+                  </span>
+                  <input
+                    name="title"
+                    defaultValue="Analisis tecnico"
+                    className="tal-input"
+                    placeholder="Ej. Alineacion tecnica"
+                  />
+                </label>
+
+                <label className="grid gap-2">
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-500">
+                    Retroalimentacion del coach
+                  </span>
+                  <textarea
+                    name="feedback"
+                    required
+                    rows={8}
+                    className="tal-input min-h-40 resize-y py-3"
+                    placeholder="Escribe puntos clave, correcciones y tarea sugerida para el atleta."
+                  />
+                </label>
+
+                <div className="grid grid-cols-2 gap-3 text-xs font-bold text-slate-400">
+                  <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                    Modo: Analisis tecnico
+                  </span>
+                  <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                    Tiempo: {formatTime(videoRef.current?.currentTime || 0)}
+                  </span>
+                </div>
+
+                {feedbackError && (
+                  <div className="rounded-2xl border border-red-300/25 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-100">
+                    {feedbackError}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={feedbackSaving || !feedbackSnapshot}
+                  className="tal-button flex w-full items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Save size={18} />
+                  {feedbackSaving ? "Guardando..." : "Guardar retroalimentacion"}
+                </button>
+              </section>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
