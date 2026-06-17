@@ -12,7 +12,6 @@ import {
   Activity,
   ArrowRight,
   BarChart3,
-  Brain,
   CalendarClock,
   Crosshair,
   Dumbbell,
@@ -175,101 +174,6 @@ export default async function AthleteProfilePage({
     .limit(6);
 
   const videoFeedback = videoFeedbackRaw || [];
-
-  const { data: psychologySessionsRaw } = await supabase
-    .from("psychology_sessions")
-    .select(
-      `
-      id,
-      session_date,
-      session_type,
-      focus_area,
-      sport_feeling,
-      confidence_score,
-      focus_score,
-      breathing_control_score,
-      routine_clarity_score,
-      error_recovery_score,
-      recommendation,
-      notes,
-      mental_techniques (
-        name,
-        category
-      ),
-      performance_staff (
-        name
-      )
-    `
-    )
-    .eq("athlete_id", athlete.id)
-    .order("session_date", { ascending: false })
-    .limit(4);
-
-  const psychologySessions = psychologySessionsRaw || [];
-
-  const { data: mentalTechniqueAssignmentsRaw } = await supabase
-    .from("athlete_mental_technique_assignments")
-    .select(
-      `
-      id,
-      objective,
-      assigned_at,
-      mental_techniques (
-        name,
-        category,
-        instructions,
-        duration_minutes
-      )
-    `
-    )
-    .eq("athlete_id", athlete.id)
-    .eq("status", "active")
-    .order("assigned_at", { ascending: false })
-    .limit(4);
-
-  const mentalTechniqueAssignments = mentalTechniqueAssignmentsRaw || [];
-
-  const { data: mentalRoutinesRaw } = await supabase
-    .from("athlete_mental_routines")
-    .select("*")
-    .eq("athlete_id", athlete.id)
-    .eq("is_active", true)
-    .order("created_at", { ascending: false })
-    .limit(2);
-
-  const mentalRoutines = mentalRoutinesRaw || [];
-
-  const { data: mentalPracticeLogsRaw } = await supabase
-    .from("athlete_mental_practice_logs")
-    .select(
-      `
-      id,
-      practiced_at,
-      usefulness_score,
-      worked_status,
-      sport_comment,
-      athlete_mental_technique_assignments (
-        mental_techniques (
-          name
-        )
-      )
-    `
-    )
-    .eq("athlete_id", athlete.id)
-    .order("practiced_at", { ascending: false })
-    .limit(3);
-
-  const mentalPracticeLogs = mentalPracticeLogsRaw || [];
-
-  const { data: mentalSeasonPlansRaw } = await supabase
-    .from("athlete_mental_season_plans")
-    .select("*")
-    .eq("athlete_id", athlete.id)
-    .eq("status", "active")
-    .order("start_date", { ascending: false })
-    .limit(2);
-
-  const mentalSeasonPlans = mentalSeasonPlansRaw || [];
 
   const trainings = athlete.training_sessions || [];
   const getScoringSeries = (training: any) =>
@@ -981,6 +885,7 @@ export default async function AthleteProfilePage({
         </div>
       </section>
 
+      {/*
       <section className="tal-chart-card mb-6">
         <div className="mb-5 flex items-center justify-between gap-4">
           <h3 className="flex items-center gap-3 text-2xl font-black text-white tal-text-glow">
@@ -1059,8 +964,9 @@ export default async function AthleteProfilePage({
           </div>
         )}
       </section>
+      */}
 
-      <section className="mb-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <section className="mb-6 grid grid-cols-1 gap-5">
         <SupportContactGroup
           title="Preparador fisico"
           icon={Dumbbell}
@@ -1068,115 +974,9 @@ export default async function AthleteProfilePage({
             (member: any) => member.staff_type === "physical_trainer"
           )}
         />
-
-        <SupportContactGroup
-          title="Psicologo deportivo"
-          icon={Brain}
-          staff={supportStaff.filter(
-            (member: any) => member.staff_type === "sports_psychologist"
-          )}
-        />
       </section>
 
-      <section className="tal-chart-card mb-6">
-        <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <h3 className="flex items-center gap-3 text-2xl font-black text-white tal-text-glow">
-            <span className="tal-metric-icon mb-0">
-              <Brain size={20} />
-            </span>
-            Preparacion mental deportiva
-          </h3>
-
-          {canManageAthlete && (
-            <Link
-              href="/psychology"
-              className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-cyan-100 transition hover:bg-cyan-300 hover:text-slate-950"
-            >
-              Abrir psicologia
-            </Link>
-          )}
-        </div>
-
-        <div className="mb-5 rounded-2xl border border-yellow-300/20 bg-yellow-300/10 p-4 text-sm font-bold leading-6 text-yellow-100">
-          Esta informacion esta enfocada en rendimiento deportivo: foco,
-          respiracion, confianza, rutina y manejo de presion competitiva. No
-          sustituye atencion psicologica clinica.
-        </div>
-
-        <div className="mb-5 grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <div className="rounded-2xl border border-cyan-300/15 bg-cyan-300/10 p-4">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-200">
-              Rutina pre-tiro
-            </p>
-            {mentalRoutines[0] ? (
-              <div className="mt-3 text-sm font-bold leading-6 text-cyan-50">
-                <h4 className="text-lg font-black text-white">
-                  {mentalRoutines[0].title}
-                </h4>
-                {mentalRoutines[0].breathing_step && (
-                  <p className="mt-2">Respiracion: {mentalRoutines[0].breathing_step}</p>
-                )}
-                {mentalRoutines[0].cue_word && (
-                  <p>Palabra clave: {mentalRoutines[0].cue_word}</p>
-                )}
-                {mentalRoutines[0].reset_action && (
-                  <p>Reset: {mentalRoutines[0].reset_action}</p>
-                )}
-              </div>
-            ) : (
-              <p className="mt-3 text-sm font-bold text-cyan-100/70">
-                Sin rutina activa.
-              </p>
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-emerald-300/15 bg-emerald-300/10 p-4">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-200">
-              Plan de temporada
-            </p>
-            {mentalSeasonPlans[0] ? (
-              <div className="mt-3 text-sm font-bold leading-6 text-emerald-50">
-                <h4 className="text-lg font-black text-white">
-                  {mentalSeasonPlans[0].title}
-                </h4>
-                <p className="mt-2">
-                  {mentalSeasonPlans[0].season_phase} - {mentalSeasonPlans[0].start_date}
-                </p>
-                {mentalSeasonPlans[0].objective && (
-                  <p>{mentalSeasonPlans[0].objective}</p>
-                )}
-              </div>
-            ) : (
-              <p className="mt-3 text-sm font-bold text-emerald-100/70">
-                Sin plan activo.
-              </p>
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-300">
-              Bitacora mental
-            </p>
-            <div className="mt-3 grid gap-2">
-              {mentalPracticeLogs.map((log: any) => (
-                <div key={log.id} className="rounded-xl border border-white/10 bg-slate-950/40 p-3 text-sm font-bold text-slate-300">
-                  <p className="text-white">
-                    {log.athlete_mental_technique_assignments?.mental_techniques?.name || "Tecnica mental"}
-                  </p>
-                  <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">
-                    {log.practiced_at} - utilidad {log.usefulness_score || "-"}/5
-                  </p>
-                </div>
-              ))}
-              {mentalPracticeLogs.length === 0 && (
-                <p className="text-sm font-bold text-slate-500">
-                  Sin practicas registradas.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
+      {/*
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
           <div>
             <p className="mb-3 text-xs font-black uppercase tracking-[0.24em] text-cyan-300">
@@ -1270,6 +1070,7 @@ export default async function AthleteProfilePage({
           </div>
         </div>
       </section>
+      */}
 
       <section className="mb-6 grid grid-cols-1 gap-5 md:grid-cols-4">
         <InfoCard title="Categoría" value={athlete.category || "-"} />

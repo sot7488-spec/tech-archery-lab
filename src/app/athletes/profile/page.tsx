@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { MessageSquare, Video } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 export default function AthleteProfilePage() {
@@ -20,7 +19,6 @@ export default function AthleteProfilePage() {
   const [associationId, setAssociationId] = useState("");
   const [federationId, setFederationId] = useState("");
   const [notes, setNotes] = useState("");
-  const [videoFeedback, setVideoFeedback] = useState<any[]>([]);
 
   const [message, setMessage] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -82,28 +80,6 @@ export default function AthleteProfilePage() {
 
     const userData = Array.isArray(data.users) ? data.users[0] : data.users;
     setName(userData?.name || "");
-
-    const { data: feedbackData } = await supabase
-      .from("video_analysis_feedback")
-      .select(
-        `
-        id,
-        title,
-        feedback,
-        snapshot_data_url,
-        video_time_seconds,
-        analysis_mode,
-        created_at,
-        users!video_analysis_feedback_coach_id_fkey (
-          name
-        )
-      `
-      )
-      .eq("athlete_id", data.id)
-      .order("created_at", { ascending: false })
-      .limit(6);
-
-    setVideoFeedback(feedbackData || []);
 
     setLoading(false);
   }
@@ -299,6 +275,7 @@ export default function AthleteProfilePage() {
           </form>
         </div>
 
+        {/*
         <div className="mt-6 rounded-[2rem] border border-emerald-400/20 bg-white/[0.05] p-6 shadow-[0_0_60px_rgba(16,185,129,0.10)] backdrop-blur-xl">
           <div className="mb-5 flex items-center gap-3">
             <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-300/20 bg-emerald-300/10 text-emerald-200">
@@ -369,6 +346,7 @@ export default function AthleteProfilePage() {
             </p>
           )}
         </div>
+        */}
       </section>
     </main>
   );

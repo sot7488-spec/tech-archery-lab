@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -27,6 +27,7 @@ import {
   User,
   UserPlus,
   Users,
+  Video,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -161,6 +162,7 @@ function athleteNavSections(athleteId: string): NavSection[] {
       label: "Mi portal",
       defaultOpen: true,
       items: [
+        { href: `/athletes/profile/${athleteId}`, label: "Mi perfil", icon: User },
         { href: `/athletes/${athleteId}`, label: "Mi ficha", icon: Users },
         {
           href: `/analytics/${athleteId}`,
@@ -172,10 +174,15 @@ function athleteNavSections(athleteId: string): NavSection[] {
           label: "Mis entrenamientos",
           icon: Activity,
         },
+        {
+          href: "/technical-feedback",
+          label: "Retro tecnica",
+          icon: Video,
+        },
+        { href: "/mind", label: "Mente Deportiva", icon: Brain },
         { href: "/agenda", label: "Mi agenda", icon: CalendarDays },
         { href: "/leagues", label: "Liga indoor", icon: Trophy },
         { href: `/equipment/${athleteId}`, label: "Mi equipo", icon: Shield },
-        { href: `/athletes/profile/${athleteId}`, label: "Mi perfil", icon: User },
       ],
     },
   ];
@@ -204,15 +211,7 @@ export default function Sidebar() {
     [navSections]
   );
 
-  useEffect(() => {
-    loadNavigation();
-  }, []);
-
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
-
-  function applySections(sections: NavSection[]) {
+  const applySections = useCallback((sections: NavSection[]) => {
     setNavSections(sections);
     setOpenSections((current) => {
       const next = getInitialOpenSections(sections);
@@ -225,9 +224,9 @@ export default function Sidebar() {
 
       return next;
     });
-  }
+  }, []);
 
-  async function loadNavigation() {
+  const loadNavigation = useCallback(async () => {
     setLoading(true);
 
     const {
@@ -290,7 +289,12 @@ export default function Sidebar() {
 
     applySections(athleteNavSections(athlete.id));
     setLoading(false);
-  }
+  }, [applySections]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadNavigation();
+  }, [loadNavigation]);
 
   async function handleLogout() {
     await supabase.auth.signOut();
