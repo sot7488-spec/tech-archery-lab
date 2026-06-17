@@ -92,7 +92,12 @@ export async function sendStaffInvitationEmail({
     };
   }
 
-  const roleLabel = role === "coach" ? "coach" : "administrador";
+  const roleLabel =
+    role === "coach"
+      ? "coach"
+      : role === "sports_psychologist"
+        ? "psicologo deportivo"
+        : "administrador";
   const subject = "Invitacion a Tech Archery Lab";
   const clubLine = clubName ? `Club asignado: ${clubName}` : "Acceso administrativo";
   const text = [

@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
+import ThemeToggle from "@/components/ThemeToggle";
 
 type NavItem = {
   href: string;
@@ -56,6 +57,7 @@ const adminNavSections: NavSection[] = [
       { href: "/analytics", label: "Analytics", icon: BarChart3 },
       { href: "/video-analysis", label: "Video analisis", icon: ScanLine },
       { href: "/video-analysis-v2", label: "Video analisis V2", icon: ScanLine },
+      { href: "/video-analysis-v3", label: "Video analisis V3", icon: ScanLine },
       { href: "/agenda", label: "Agenda", icon: CalendarDays },
     ],
   },
@@ -103,6 +105,7 @@ function coachNavSections(clubId: string | null): NavSection[] {
         { href: "/analytics", label: "Analytics", icon: BarChart3 },
         { href: "/video-analysis", label: "Video analisis", icon: ScanLine },
         { href: "/video-analysis-v2", label: "Video analisis V2", icon: ScanLine },
+        { href: "/video-analysis-v3", label: "Video analisis V3", icon: ScanLine },
         { href: "/agenda", label: "Agenda", icon: CalendarDays },
       ],
     },
@@ -130,6 +133,22 @@ function coachNavSections(clubId: string | null): NavSection[] {
         { href: "/conditioning", label: "Fisico", icon: Dumbbell },
         { href: "/psychology", label: "Psicologia", icon: Brain },
         { href: "/leagues", label: "Liga indoor", icon: Trophy },
+      ],
+    },
+  ];
+}
+
+function psychologistNavSections(): NavSection[] {
+  return [
+    {
+      id: "mental",
+      label: "Psicologia",
+      defaultOpen: true,
+      items: [
+        { href: "/", label: "Dashboard", icon: LayoutDashboard },
+        { href: "/psychology", label: "Psicologia", icon: Brain },
+        { href: "/athletes", label: "Atletas", icon: Users },
+        { href: "/agenda", label: "Agenda", icon: CalendarDays },
       ],
     },
   ];
@@ -232,6 +251,12 @@ export default function Sidebar() {
       return;
     }
 
+    if (profile?.role === "sports_psychologist") {
+      applySections(psychologistNavSections());
+      setLoading(false);
+      return;
+    }
+
     if (profile?.role !== "athlete") {
       applySections(adminNavSections);
       setLoading(false);
@@ -307,14 +332,17 @@ export default function Sidebar() {
             </div>
           </Link>
 
-          <button
-            type="button"
-            onClick={() => setMobileOpen(true)}
-            className="flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-400/10 text-cyan-200 shadow-[0_0_24px_rgba(34,211,238,0.12)] transition active:scale-95"
-            aria-label="Abrir menu"
-          >
-            <Menu size={22} />
-          </button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle compact />
+            <button
+              type="button"
+              onClick={() => setMobileOpen(true)}
+              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-400/10 text-cyan-200 shadow-[0_0_24px_rgba(34,211,238,0.12)] transition active:scale-95"
+              aria-label="Abrir menu"
+            >
+              <Menu size={22} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -473,6 +501,10 @@ export default function Sidebar() {
           {compact ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
           {!compact && <span>Compactar</span>}
         </button>
+
+        <div className="mb-3">
+          <ThemeToggle compact={compact} />
+        </div>
 
         <nav className="flex-1 space-y-2 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(34,211,238,0.45)_transparent]">
           {loading && (

@@ -18,7 +18,7 @@ export default function AppShell({
     pathname.startsWith("/register/");
 
   return (
-    <div className="flex min-h-screen bg-slate-950">
+    <div className="flex min-h-screen bg-background">
       {!hideSidebar && <Sidebar />}
 
       <main

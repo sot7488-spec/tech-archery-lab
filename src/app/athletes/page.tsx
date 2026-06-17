@@ -40,7 +40,12 @@ export default async function AthletesPage({ searchParams }: PageProps) {
     .single();
 
   if (!profile) redirect("/login");
-  if (profile.role === "coach" && !profile.club_id) redirect("/");
+  if (
+    (profile.role === "coach" || profile.role === "sports_psychologist") &&
+    !profile.club_id
+  ) {
+    redirect("/");
+  }
 
   // =========================
   // Carga de clubs para modal
@@ -50,7 +55,10 @@ export default async function AthletesPage({ searchParams }: PageProps) {
     .select("id, name")
     .order("name", { ascending: true });
 
-  if (profile.role === "coach" && profile.club_id) {
+  if (
+    (profile.role === "coach" || profile.role === "sports_psychologist") &&
+    profile.club_id
+  ) {
     clubsQuery = clubsQuery.eq("id", profile.club_id);
   }
 
@@ -74,7 +82,10 @@ export default async function AthletesPage({ searchParams }: PageProps) {
     `)
     .order("created_at", { ascending: false });
 
-  if (profile.role === "coach" && profile.club_id) {
+  if (
+    (profile.role === "coach" || profile.role === "sports_psychologist") &&
+    profile.club_id
+  ) {
     athletesQuery = athletesQuery.eq("club_id", profile.club_id);
   }
 
@@ -152,7 +163,9 @@ export default async function AthletesPage({ searchParams }: PageProps) {
             ← Dashboard
           </Link>
 
-          <AthleteCreateModal clubs={clubs ?? []} />
+          {profile.role !== "sports_psychologist" && (
+            <AthleteCreateModal clubs={clubs ?? []} />
+          )}
         </div>
 
         {/* =========================

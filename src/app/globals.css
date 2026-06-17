@@ -142,6 +142,40 @@
   --sidebar-ring: oklch(0.82 0.18 210);
 }
 
+[data-theme="light"] {
+  --background: oklch(0.975 0.018 235);
+  --foreground: oklch(0.22 0.04 250);
+  --card: oklch(1 0 0 / 92%);
+  --card-foreground: oklch(0.22 0.04 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.04 250);
+  --primary: oklch(0.72 0.16 210);
+  --primary-foreground: oklch(0.99 0.01 240);
+  --secondary: oklch(0.93 0.025 235);
+  --secondary-foreground: oklch(0.24 0.04 250);
+  --muted: oklch(0.92 0.025 240);
+  --muted-foreground: oklch(0.48 0.04 245);
+  --accent: oklch(0.7 0.16 210);
+  --accent-foreground: oklch(0.99 0.01 240);
+  --destructive: oklch(0.58 0.22 25);
+  --border: oklch(0.7 0.08 220 / 24%);
+  --input: oklch(0.9 0.03 235);
+  --ring: oklch(0.7 0.16 210);
+  --chart-1: oklch(0.68 0.16 210);
+  --chart-2: oklch(0.62 0.14 230);
+  --chart-3: oklch(0.65 0.16 185);
+  --chart-4: oklch(0.62 0.15 160);
+  --chart-5: oklch(0.72 0.17 90);
+  --sidebar: oklch(0.985 0.012 235);
+  --sidebar-foreground: oklch(0.22 0.04 250);
+  --sidebar-primary: oklch(0.68 0.16 210);
+  --sidebar-primary-foreground: oklch(0.99 0.01 240);
+  --sidebar-accent: oklch(0.93 0.025 235);
+  --sidebar-accent-foreground: oklch(0.24 0.04 250);
+  --sidebar-border: oklch(0.7 0.08 220 / 24%);
+  --sidebar-ring: oklch(0.7 0.16 210);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -159,6 +193,13 @@
       radial-gradient(circle at top right, rgba(34, 211, 238, 0.14), transparent 34rem),
       radial-gradient(circle at bottom left, rgba(14, 165, 233, 0.12), transparent 30rem),
       linear-gradient(135deg, #020617 0%, #07111f 45%, #020617 100%);
+  }
+
+  [data-theme="light"] body {
+    background:
+      radial-gradient(circle at top right, rgba(34, 211, 238, 0.18), transparent 34rem),
+      radial-gradient(circle at bottom left, rgba(14, 165, 233, 0.12), transparent 30rem),
+      linear-gradient(135deg, #f8fafc 0%, #eef8fb 46%, #ffffff 100%);
   }
 
   ::selection {
@@ -276,6 +317,59 @@
     @apply relative overflow-hidden rounded-[2rem] border border-cyan-400/10 bg-white/[0.045] p-6 shadow-[0_0_58px_rgba(0,0,0,0.36)] backdrop-blur-2xl;
   }
 
+  [data-theme="light"] .tal-card,
+  [data-theme="light"] .tal-metric-card,
+  [data-theme="light"] .tal-chart-card {
+    border-color: rgba(14, 116, 144, 0.16);
+    background: rgba(255, 255, 255, 0.76);
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.08);
+  }
+
+  [data-theme="light"] .tal-panel,
+  [data-theme="light"] .tal-hero-panel {
+    border-color: rgba(14, 116, 144, 0.16);
+    background:
+      radial-gradient(circle at top left, rgba(34, 211, 238, 0.18), transparent 28rem),
+      linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(236, 253, 255, 0.76));
+    box-shadow: 0 28px 85px rgba(15, 23, 42, 0.09);
+  }
+
+  [data-theme="light"] .tal-metric-card::before {
+    background:
+      linear-gradient(90deg, rgba(14, 116, 144, 0.35), rgba(14, 116, 144, 0.05) 36%, transparent 72%) top left / 100% 1px no-repeat,
+      radial-gradient(circle at top right, rgba(34, 211, 238, 0.14), transparent 48%),
+      linear-gradient(135deg, rgba(255, 255, 255, 0.7), transparent 38%);
+  }
+
+  [data-theme="light"] .tal-metric-label {
+    color: rgb(71 85 105);
+  }
+
+  [data-theme="light"] .tal-metric-value {
+    color: rgb(15 23 42);
+  }
+
+  [data-theme="light"] .tal-input {
+    border-color: rgba(14, 116, 144, 0.16);
+    background: rgba(255, 255, 255, 0.82);
+    color: rgb(15 23 42);
+  }
+
+  [data-theme="light"] .tal-input::placeholder {
+    color: rgb(100 116 139);
+  }
+
+  [data-theme="light"] .tal-button-dark {
+    background: rgb(226 232 240);
+    color: rgb(15 23 42);
+  }
+
+  [data-theme="light"] .tal-link-card {
+    border-color: rgba(14, 116, 144, 0.14);
+    background: rgba(255, 255, 255, 0.72);
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.08);
+  }
+
   .tal-print-sheet {
     width: min(100%, 1122px);
     aspect-ratio: 297 / 210;
@@ -283,6 +377,57 @@
 }
 
 @layer utilities {
+  [data-theme="light"] .bg-slate-950,
+  [data-theme="light"] [class*="bg-slate-950"] {
+    background-color: rgb(248 250 252 / var(--tw-bg-opacity, 1)) !important;
+  }
+
+  [data-theme="light"] .bg-slate-900,
+  [data-theme="light"] [class*="bg-slate-900"] {
+    background-color: rgb(255 255 255 / var(--tw-bg-opacity, 1)) !important;
+  }
+
+  [data-theme="light"] .bg-slate-800,
+  [data-theme="light"] [class*="bg-slate-800"] {
+    background-color: rgb(241 245 249 / var(--tw-bg-opacity, 1)) !important;
+  }
+
+  [data-theme="light"] .text-white,
+  [data-theme="light"] [class*="text-white"] {
+    color: rgb(15 23 42) !important;
+  }
+
+  [data-theme="light"] .text-slate-500,
+  [data-theme="light"] [class*="text-slate-500"] {
+    color: rgb(71 85 105) !important;
+  }
+
+  [data-theme="light"] .text-slate-400,
+  [data-theme="light"] [class*="text-slate-400"] {
+    color: rgb(71 85 105) !important;
+  }
+
+  [data-theme="light"] .text-slate-300,
+  [data-theme="light"] [class*="text-slate-300"] {
+    color: rgb(51 65 85) !important;
+  }
+
+  [data-theme="light"] [class*="border-white/10"],
+  [data-theme="light"] [class*="border-cyan-400/10"],
+  [data-theme="light"] [class*="border-cyan-300/15"] {
+    border-color: rgba(14, 116, 144, 0.16) !important;
+  }
+
+  [data-theme="light"] [class*="bg-white/["],
+  [data-theme="light"] [class*="bg-white/5"],
+  [data-theme="light"] [class*="bg-white/10"] {
+    background-color: rgba(255, 255, 255, 0.68) !important;
+  }
+
+  [data-theme="light"] .shadow-2xl {
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.08) !important;
+  }
+
   .tal-grid-bg {
     background-image:
       linear-gradient(rgba(34, 211, 238, 0.08) 1px, transparent 1px),

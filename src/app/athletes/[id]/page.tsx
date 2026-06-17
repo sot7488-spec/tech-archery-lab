@@ -17,16 +17,20 @@ import {
   Crosshair,
   Dumbbell,
   Filter,
+  Flame,
   Gauge,
   Mail,
   Medal,
   MessageSquare,
   Phone,
+  ShieldCheck,
   Sparkles,
+  Star,
   Target,
   Trophy,
   UserRound,
   Video,
+  Zap,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -107,7 +111,11 @@ export default async function AthleteProfilePage({
     );
   }
 
-  if (currentUser?.role === "coach" && athlete.club_id !== currentUser.club_id) {
+  if (
+    (currentUser?.role === "coach" ||
+      currentUser?.role === "sports_psychologist") &&
+    athlete.club_id !== currentUser.club_id
+  ) {
     redirect("/athletes");
   }
 
@@ -167,6 +175,59 @@ export default async function AthleteProfilePage({
     .limit(6);
 
   const videoFeedback = videoFeedbackRaw || [];
+
+  const { data: psychologySessionsRaw } = await supabase
+    .from("psychology_sessions")
+    .select(
+      `
+      id,
+      session_date,
+      session_type,
+      focus_area,
+      sport_feeling,
+      confidence_score,
+      focus_score,
+      breathing_control_score,
+      routine_clarity_score,
+      error_recovery_score,
+      recommendation,
+      notes,
+      mental_techniques (
+        name,
+        category
+      ),
+      performance_staff (
+        name
+      )
+    `
+    )
+    .eq("athlete_id", athlete.id)
+    .order("session_date", { ascending: false })
+    .limit(4);
+
+  const psychologySessions = psychologySessionsRaw || [];
+
+  const { data: mentalTechniqueAssignmentsRaw } = await supabase
+    .from("athlete_mental_technique_assignments")
+    .select(
+      `
+      id,
+      objective,
+      assigned_at,
+      mental_techniques (
+        name,
+        category,
+        instructions,
+        duration_minutes
+      )
+    `
+    )
+    .eq("athlete_id", athlete.id)
+    .eq("status", "active")
+    .order("assigned_at", { ascending: false })
+    .limit(4);
+
+  const mentalTechniqueAssignments = mentalTechniqueAssignmentsRaw || [];
 
   const trainings = athlete.training_sessions || [];
   const getScoringSeries = (training: any) =>
@@ -430,6 +491,128 @@ export default async function AthleteProfilePage({
     );
   }
 
+  const trainingAverages = trainingChartData
+    .map((item: any) => Number(item.average || 0))
+    .filter((average: number) => average > 0);
+  const averageOfAverages =
+    trainingAverages.length > 0
+      ? trainingAverages.reduce((sum: number, value: number) => sum + value, 0) /
+        trainingAverages.length
+      : 0;
+  const averageVariance =
+    trainingAverages.length > 1
+      ? trainingAverages.reduce(
+          (sum: number, value: number) =>
+            sum + Math.pow(value - averageOfAverages, 2),
+          0
+        ) / trainingAverages.length
+      : 0;
+  const averageDeviation = Math.sqrt(averageVariance);
+  const consistencyScore =
+    trainingAverages.length >= 3
+      ? Math.max(0, Math.min(100, Math.round(100 - averageDeviation * 28)))
+      : Math.min(55, trainingAverages.length * 18);
+  const completionRate =
+    totalTrainings > 0 ? Math.round((completedTrainings / totalTrainings) * 100) : 0;
+
+  const gamificationSkills: GamificationSkill[] = [
+    buildSkill({
+      title: "Precision",
+      description: `Flechas dentro de zona ${achievementZoneLabel}.`,
+      value: achievementZoneEffectiveness,
+      suffix: "%",
+      thresholds: [25, 40, 55, 70, 82],
+      icon: Crosshair,
+      tone: "cyan",
+    }),
+    buildSkill({
+      title: "Consistencia",
+      description: "Estabilidad del promedio entre entrenamientos.",
+      value: consistencyScore,
+      suffix: "%",
+      thresholds: [25, 45, 62, 78, 90],
+      icon: ShieldCheck,
+      tone: "emerald",
+    }),
+    buildSkill({
+      title: "Volumen",
+      description: "Flechas puntuadas registradas.",
+      value: totalArrows,
+      suffix: "",
+      thresholds: [100, 300, 750, 1500, 3000],
+      icon: Zap,
+      tone: "yellow",
+    }),
+    buildSkill({
+      title: "Disciplina",
+      description: "Entrenamientos finalizados.",
+      value: completedTrainings,
+      suffix: "",
+      thresholds: [1, 3, 8, 15, 30],
+      icon: Flame,
+      tone: "rose",
+    }),
+    buildSkill({
+      title: "Tecnica",
+      description: "Retroalimentaciones tecnicas recibidas.",
+      value: videoFeedback.length,
+      suffix: "",
+      thresholds: [1, 3, 6, 10, 20],
+      icon: Video,
+      tone: "violet",
+    }),
+  ];
+
+  const gamificationBadges: GamificationBadge[] = [
+    {
+      title: "Primer entrenamiento",
+      description: "Registro inicial completado.",
+      unlocked: totalTrainings >= 1,
+      icon: Activity,
+    },
+    {
+      title: "100 flechas",
+      description: "Base de volumen construida.",
+      unlocked: totalArrows >= 100,
+      icon: Crosshair,
+    },
+    {
+      title: "Zona caliente",
+      description: "50% o mas dentro de zona de logro.",
+      unlocked: achievementZoneEffectiveness >= 50 && totalArrows >= 30,
+      icon: Target,
+    },
+    {
+      title: "Cazador de X",
+      description: "10 o mas X registradas.",
+      unlocked: totalX >= 10,
+      icon: X,
+    },
+    {
+      title: "Tecnica revisada",
+      description: "Cuenta con feedback tecnico por video.",
+      unlocked: videoFeedback.length >= 1,
+      icon: Video,
+    },
+    {
+      title: "Constancia",
+      description: "3 entrenamientos finalizados.",
+      unlocked: completedTrainings >= 3,
+      icon: Flame,
+    },
+  ];
+
+  const athleteXp =
+    gamificationSkills.reduce((sum, skill) => sum + skill.level * 120, 0) +
+    gamificationBadges.filter((badge) => badge.unlocked).length * 75 +
+    completedTrainings * 20 +
+    Math.floor(totalArrows / 10);
+  const athleteLevel = Math.max(1, Math.floor(athleteXp / 500) + 1);
+  const currentLevelXp = athleteXp % 500;
+  const nextSkill =
+    [...gamificationSkills].sort((a, b) => a.progress - b.progress)[0] ||
+    gamificationSkills[0];
+
   return (
     <main className="min-h-screen p-8 text-white">
       
@@ -597,6 +780,16 @@ export default async function AthleteProfilePage({
           <StatCard key={stat.title} {...stat} />
         ))}
       </section>
+
+      <GamificationPanel
+        level={athleteLevel}
+        xp={athleteXp}
+        currentLevelXp={currentLevelXp}
+        completionRate={completionRate}
+        skills={gamificationSkills}
+        badges={gamificationBadges}
+        nextSkill={nextSkill}
+      />
 
       <AthleteCharts
         trainingChartData={trainingChartData}
@@ -843,6 +1036,125 @@ export default async function AthleteProfilePage({
         />
       </section>
 
+      <section className="tal-chart-card mb-6">
+        <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <h3 className="flex items-center gap-3 text-2xl font-black text-white tal-text-glow">
+            <span className="tal-metric-icon mb-0">
+              <Brain size={20} />
+            </span>
+            Preparacion mental deportiva
+          </h3>
+
+          {canManageAthlete && (
+            <Link
+              href="/psychology"
+              className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-cyan-100 transition hover:bg-cyan-300 hover:text-slate-950"
+            >
+              Abrir psicologia
+            </Link>
+          )}
+        </div>
+
+        <div className="mb-5 rounded-2xl border border-yellow-300/20 bg-yellow-300/10 p-4 text-sm font-bold leading-6 text-yellow-100">
+          Esta informacion esta enfocada en rendimiento deportivo: foco,
+          respiracion, confianza, rutina y manejo de presion competitiva. No
+          sustituye atencion psicologica clinica.
+        </div>
+
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+          <div>
+            <p className="mb-3 text-xs font-black uppercase tracking-[0.24em] text-cyan-300">
+              Tecnicas activas
+            </p>
+            <div className="grid gap-3">
+              {mentalTechniqueAssignments.map((assignment: any) => (
+                <article
+                  key={assignment.id}
+                  className="rounded-2xl border border-white/10 bg-slate-950/50 p-4"
+                >
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-300">
+                    {assignment.mental_techniques?.category || "tecnica"} ·{" "}
+                    {assignment.mental_techniques?.duration_minutes || 3} min
+                  </p>
+                  <h4 className="mt-1 text-lg font-black text-white">
+                    {assignment.mental_techniques?.name || "Tecnica mental"}
+                  </h4>
+                  {assignment.objective && (
+                    <p className="mt-2 text-sm font-bold leading-6 text-slate-300">
+                      {assignment.objective}
+                    </p>
+                  )}
+                  {assignment.mental_techniques?.instructions && (
+                    <p className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-sm font-bold leading-6 text-slate-400">
+                      {assignment.mental_techniques.instructions}
+                    </p>
+                  )}
+                </article>
+              ))}
+
+              {mentalTechniqueAssignments.length === 0 && (
+                <p className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm font-bold text-slate-500">
+                  Aun no hay tecnicas mentales deportivas asignadas.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-3 text-xs font-black uppercase tracking-[0.24em] text-cyan-300">
+              Ultimos check-ins
+            </p>
+            <div className="grid gap-3">
+              {psychologySessions.map((session: any) => (
+                <article
+                  key={session.id}
+                  className="rounded-2xl border border-white/10 bg-slate-950/50 p-4"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-300">
+                        {session.session_date}
+                      </p>
+                      <h4 className="mt-1 text-lg font-black text-white">
+                        {session.focus_area || "Check-in deportivo"}
+                      </h4>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-xs font-black text-slate-300">
+                      <span className="rounded-full border border-cyan-300/15 bg-cyan-300/10 px-3 py-1">
+                        Conf {session.confidence_score || "-"}
+                      </span>
+                      <span className="rounded-full border border-cyan-300/15 bg-cyan-300/10 px-3 py-1">
+                        Foco {session.focus_score || "-"}
+                      </span>
+                      <span className="rounded-full border border-cyan-300/15 bg-cyan-300/10 px-3 py-1">
+                        Resp {session.breathing_control_score || "-"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {session.sport_feeling && (
+                    <p className="mt-3 text-sm font-bold leading-6 text-slate-300">
+                      {session.sport_feeling}
+                    </p>
+                  )}
+                  {session.recommendation && (
+                    <p className="mt-3 rounded-xl border border-emerald-300/15 bg-emerald-300/10 p-3 text-sm font-bold leading-6 text-emerald-100">
+                      {session.recommendation}
+                    </p>
+                  )}
+                </article>
+              ))}
+
+              {psychologySessions.length === 0 && (
+                <p className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-5 text-sm font-bold text-slate-500">
+                  Aun no hay check-ins deportivos registrados.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="mb-6 grid grid-cols-1 gap-5 md:grid-cols-4">
         <InfoCard title="Categoría" value={athlete.category || "-"} />
         <InfoCard title="Mano dominante" value={athlete.dominant_hand || "-"} />
@@ -915,6 +1227,190 @@ function SupportContactGroup({
         )}
       </div>
     </div>
+  );
+}
+
+function GamificationPanel({
+  level,
+  xp,
+  currentLevelXp,
+  completionRate,
+  skills,
+  badges,
+  nextSkill,
+}: {
+  level: number;
+  xp: number;
+  currentLevelXp: number;
+  completionRate: number;
+  skills: GamificationSkill[];
+  badges: GamificationBadge[];
+  nextSkill: GamificationSkill;
+}) {
+  const unlockedCount = badges.filter((badge) => badge.unlocked).length;
+
+  return (
+    <ViewReveal>
+      <section className="tal-chart-card mb-6 overflow-hidden">
+        <div className="mb-6 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.35em] text-cyan-300">
+              TAL Skill Path
+            </p>
+            <h3 className="mt-2 flex items-center gap-3 text-3xl font-black text-white tal-text-glow">
+              <span className="tal-metric-icon mb-0">
+                <Star size={20} />
+              </span>
+              Progreso y skills
+            </h3>
+            <p className="mt-3 max-w-2xl text-sm font-bold leading-6 text-slate-400">
+              Nivel calculado con entrenamientos, flechas, zona de logro,
+              constancia y retroalimentacion tecnica.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[520px]">
+            <GamificationSummaryCard label="Nivel TAL" value={level} icon={Trophy} />
+            <GamificationSummaryCard label="XP total" value={xp} icon={Zap} />
+            <GamificationSummaryCard
+              label="Badges"
+              value={`${unlockedCount}/${badges.length}`}
+              icon={Medal}
+            />
+          </div>
+        </div>
+
+        <div className="mb-6 rounded-[1.4rem] border border-cyan-300/15 bg-slate-950/60 p-4">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm font-black uppercase tracking-[0.18em] text-slate-300">
+              Camino al nivel {level + 1}
+            </p>
+            <p className="text-sm font-black text-cyan-200">
+              <AnimatedNumber value={currentLevelXp} /> / 500 XP
+            </p>
+          </div>
+          <div className="h-3 overflow-hidden rounded-full bg-slate-800">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-emerald-300 to-yellow-200 shadow-[0_0_24px_rgba(34,211,238,0.45)]"
+              style={{ width: `${Math.min(100, (currentLevelXp / 500) * 100)}%` }}
+            />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-slate-400">
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2">
+              Finalizacion: {completionRate}%
+            </span>
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-2">
+              Siguiente foco: {nextSkill.title}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-5">
+          {skills.map((skill) => (
+            <SkillCard key={skill.title} skill={skill} />
+          ))}
+        </div>
+
+        <div className="mt-6">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h4 className="text-xl font-black text-white">Insignias</h4>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+              {unlockedCount} desbloqueadas
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {badges.map((badge) => (
+              <BadgeCard key={badge.title} badge={badge} />
+            ))}
+          </div>
+        </div>
+      </section>
+    </ViewReveal>
+  );
+}
+
+function GamificationSummaryCard({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: string | number;
+  icon: LucideIcon;
+}) {
+  return (
+    <div className="rounded-[1.2rem] border border-cyan-300/15 bg-cyan-300/10 p-4">
+      <Icon className="mb-3 text-cyan-200" size={20} />
+      <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+        {label}
+      </p>
+      <p className="mt-1 text-3xl font-black text-white">
+        <AnimatedMetricValue value={value} />
+      </p>
+    </div>
+  );
+}
+
+function SkillCard({ skill }: { skill: GamificationSkill }) {
+  const Icon = skill.icon;
+
+  return (
+    <article className={`rounded-[1.4rem] border p-4 ${skillToneClass(skill.tone)}`}>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/50">
+          <Icon size={19} />
+        </span>
+        <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs font-black">
+          Lv {skill.level}
+        </span>
+      </div>
+      <h4 className="text-lg font-black text-white">{skill.title}</h4>
+      <p className="mt-1 min-h-[40px] text-xs font-bold leading-5 text-slate-400">
+        {skill.description}
+      </p>
+      <div className="mt-4">
+        <div className="mb-2 flex items-center justify-between text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+          <span>
+            {skill.value}
+            {skill.suffix}
+          </span>
+          <span>{skill.progress}%</span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+          <div
+            className="h-full rounded-full bg-current shadow-[0_0_18px_currentColor]"
+            style={{ width: `${skill.progress}%` }}
+          />
+        </div>
+      </div>
+      <p className="mt-3 text-xs font-bold text-slate-500">
+        Proximo: {skill.nextTargetLabel}
+      </p>
+    </article>
+  );
+}
+
+function BadgeCard({ badge }: { badge: GamificationBadge }) {
+  const Icon = badge.icon;
+
+  return (
+    <article
+      className={
+        badge.unlocked
+          ? "rounded-2xl border border-yellow-300/25 bg-yellow-300/10 p-4 text-yellow-100"
+          : "rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-slate-500"
+      }
+    >
+      <div className="flex items-start gap-3">
+        <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-950/45">
+          <Icon size={18} />
+        </span>
+        <div>
+          <h4 className="font-black text-white">{badge.title}</h4>
+          <p className="mt-1 text-xs font-bold leading-5">{badge.description}</p>
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -1042,3 +1538,84 @@ type StatItem = {
   tone?: string;
   accent?: boolean;
 };
+
+type SkillTone = "cyan" | "emerald" | "yellow" | "rose" | "violet";
+
+type GamificationSkill = {
+  title: string;
+  description: string;
+  value: number;
+  suffix: string;
+  thresholds: number[];
+  level: number;
+  progress: number;
+  nextTargetLabel: string;
+  icon: LucideIcon;
+  tone: SkillTone;
+};
+
+type GamificationBadge = {
+  title: string;
+  description: string;
+  unlocked: boolean;
+  icon: LucideIcon;
+};
+
+function buildSkill({
+  title,
+  description,
+  value,
+  suffix,
+  thresholds,
+  icon,
+  tone,
+}: {
+  title: string;
+  description: string;
+  value: number;
+  suffix: string;
+  thresholds: number[];
+  icon: LucideIcon;
+  tone: SkillTone;
+}): GamificationSkill {
+  const level = thresholds.reduce(
+    (currentLevel, threshold) => (value >= threshold ? currentLevel + 1 : currentLevel),
+    0
+  );
+  const cappedLevel = Math.min(5, level);
+  const previousThreshold = cappedLevel > 0 ? thresholds[cappedLevel - 1] : 0;
+  const nextThreshold = thresholds[cappedLevel] || thresholds[thresholds.length - 1];
+  const rawProgress =
+    cappedLevel >= 5
+      ? 100
+      : ((value - previousThreshold) /
+          Math.max(1, nextThreshold - previousThreshold)) *
+        100;
+  const progress = Math.max(0, Math.min(100, Math.round(rawProgress)));
+
+  return {
+    title,
+    description,
+    value: Number.isInteger(value) ? value : Number(value.toFixed(1)),
+    suffix,
+    thresholds,
+    level: Math.max(1, cappedLevel || 1),
+    progress,
+    nextTargetLabel:
+      cappedLevel >= 5 ? "Dominado" : `${nextThreshold}${suffix || ""}`,
+    icon,
+    tone,
+  };
+}
+
+function skillToneClass(tone: SkillTone) {
+  const classes: Record<SkillTone, string> = {
+    cyan: "border-cyan-300/20 bg-cyan-300/[0.08] text-cyan-200",
+    emerald: "border-emerald-300/20 bg-emerald-300/[0.08] text-emerald-200",
+    yellow: "border-yellow-300/20 bg-yellow-300/[0.08] text-yellow-100",
+    rose: "border-rose-300/20 bg-rose-300/[0.08] text-rose-100",
+    violet: "border-violet-300/20 bg-violet-300/[0.08] text-violet-100",
+  };
+
+  return classes[tone];
+}

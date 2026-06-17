@@ -80,7 +80,8 @@ export default async function StaffInvitationsPage() {
                 Invitaciones
               </h1>
               <p className="mt-3 max-w-2xl text-sm font-medium text-slate-400 md:text-base">
-                Crea accesos de un solo uso para coaches y administradores.
+                Crea accesos de un solo uso para coaches, psicologos deportivos
+                y administradores.
               </p>
             </div>
 

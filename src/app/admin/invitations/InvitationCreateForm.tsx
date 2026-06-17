@@ -44,6 +44,7 @@ export default function InvitationCreateForm({ clubs }: Props) {
           required
         >
           <option value="coach">Coach</option>
+          <option value="sports_psychologist">Psicologo deportivo</option>
           <option value="admin">Admin</option>
         </select>
 

@@ -43,8 +43,11 @@ export async function acceptStaffInvitation(
     return { error: "Esta invitación expiró." };
   }
 
-  if (invitation.role === "coach" && !invitation.club_id) {
-    return { error: "La invitación de coach no tiene club asignado." };
+  if (
+    (invitation.role === "coach" || invitation.role === "sports_psychologist") &&
+    !invitation.club_id
+  ) {
+    return { error: "La invitación no tiene club asignado." };
   }
 
   const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -91,6 +94,23 @@ export async function acceptStaffInvitation(
 
     if (coachError) {
       return { error: coachError.message };
+    }
+  }
+
+  if (invitation.role === "sports_psychologist") {
+    const { error: staffError } = await supabase.from("performance_staff").insert({
+      user_id: authUser.id,
+      club_id: invitation.club_id,
+      staff_type: "sports_psychologist",
+      name,
+      email: invitation.email,
+      specialty: "Psicologia deportiva",
+      created_by: authUser.id,
+      is_active: true,
+    });
+
+    if (staffError) {
+      return { error: staffError.message };
     }
   }
 

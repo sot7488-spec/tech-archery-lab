@@ -46,11 +46,11 @@ export async function createStaffInvitation(
   const clubId = String(formData.get("club_id") || "").trim();
 
   if (!email) return { error: "El correo es obligatorio." };
-  if (role !== "coach" && role !== "admin") {
+  if (!["coach", "admin", "sports_psychologist"].includes(role)) {
     return { error: "Rol de invitación no permitido." };
   }
-  if (role === "coach" && !clubId) {
-    return { error: "Un coach debe pertenecer a un club." };
+  if ((role === "coach" || role === "sports_psychologist") && !clubId) {
+    return { error: "Este rol debe pertenecer a un club." };
   }
 
   const token = createInvitationToken();

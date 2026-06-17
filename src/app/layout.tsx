@@ -19,7 +19,25 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
+    <html lang="es" data-theme="dark" className="dark" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function () {
+                try {
+                  var theme = localStorage.getItem('tal-theme') === 'light' ? 'light' : 'dark';
+                  document.documentElement.dataset.theme = theme;
+                  document.documentElement.classList.toggle('dark', theme === 'dark');
+                } catch (error) {
+                  document.documentElement.dataset.theme = 'dark';
+                  document.documentElement.classList.add('dark');
+                }
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className={inter.className}>
         <AppShell>{children}</AppShell>
       </body>
