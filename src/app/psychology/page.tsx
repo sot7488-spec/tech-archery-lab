@@ -7,7 +7,11 @@ import {
   ArrowLeft,
   Brain,
   Building2,
+  CalendarCheck,
+  ClipboardList,
+  Flag,
   HeartPulse,
+  ListChecks,
   Mail,
   NotebookPen,
   Phone,
@@ -23,8 +27,12 @@ import { createClient } from "@/lib/supabase/server";
 import { createPerformanceStaff } from "../sports-support/actions";
 import {
   assignMentalTechnique,
+  createMentalRoutine,
+  createMentalSeasonPlan,
   createSportPsychologySession,
+  logMentalTechniquePractice,
 } from "./actions";
+import { TechniqueLibraryModal } from "./TechniqueLibraryModal";
 
 type Profile = {
   role: string;
@@ -185,8 +193,81 @@ export default async function PsychologyPage() {
       : { data: [] };
 
   const assignments = assignmentsRaw || [];
+
+  const { data: routinesRaw } =
+    athleteIds.length > 0
+      ? await supabase
+          .from("athlete_mental_routines")
+          .select(
+            `
+            *,
+            athlete_profiles (
+              users!athlete_profiles_user_id_fkey (
+                name
+              )
+            )
+          `
+          )
+          .in("athlete_id", athleteIds)
+          .eq("is_active", true)
+          .order("created_at", { ascending: false })
+          .limit(8)
+      : { data: [] };
+
+  const routines = routinesRaw || [];
+
+  const { data: practiceLogsRaw } =
+    athleteIds.length > 0
+      ? await supabase
+          .from("athlete_mental_practice_logs")
+          .select(
+            `
+            *,
+            athlete_profiles (
+              users!athlete_profiles_user_id_fkey (
+                name
+              )
+            ),
+            athlete_mental_technique_assignments (
+              mental_techniques (
+                name
+              )
+            )
+          `
+          )
+          .in("athlete_id", athleteIds)
+          .order("practiced_at", { ascending: false })
+          .limit(8)
+      : { data: [] };
+
+  const practiceLogs = practiceLogsRaw || [];
+
+  const { data: seasonPlansRaw } =
+    athleteIds.length > 0
+      ? await supabase
+          .from("athlete_mental_season_plans")
+          .select(
+            `
+            *,
+            athlete_profiles (
+              users!athlete_profiles_user_id_fkey (
+                name
+              )
+            )
+          `
+          )
+          .in("athlete_id", athleteIds)
+          .eq("status", "active")
+          .order("start_date", { ascending: false })
+          .limit(8)
+      : { data: [] };
+
+  const seasonPlans = seasonPlansRaw || [];
   const averageConfidence = averageMetric(sessions, "confidence_score");
   const averageFocus = averageMetric(sessions, "focus_score");
+  const averagePressure = averageMetric(sessions, "pressure_score");
+  const averageBreathing = averageMetric(sessions, "breathing_control_score");
+  const mentalAlerts = buildMentalAlerts(sessions);
 
   return (
     <main className="min-h-screen overflow-hidden bg-slate-950 px-5 py-7 text-white">
@@ -260,9 +341,11 @@ export default async function PsychologyPage() {
           <Metric icon={Target} title="Tecnicas" value={techniques.length} />
         </section>
 
-        <section className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        <section className="grid grid-cols-1 gap-5 md:grid-cols-4">
           <Metric icon={HeartPulse} title="Confianza prom." value={averageConfidence} suffix="/5" />
           <Metric icon={Activity} title="Foco prom." value={averageFocus} suffix="/5" />
+          <Metric icon={ShieldAlert} title="Presion prom." value={averagePressure} suffix="/5" />
+          <Metric icon={Wind} title="Respiracion prom." value={averageBreathing} suffix="/5" />
         </section>
 
         <section className="grid grid-cols-1 gap-5 xl:grid-cols-[0.9fr_1.1fr]">
@@ -402,29 +485,207 @@ export default async function PsychologyPage() {
               </button>
             </form>
 
-            <section className="tal-chart-card">
-              <Header icon={Wind} eyebrow="Biblioteca" title="Tecnicas basicas" />
-              <div className="mt-5 grid gap-3">
-                {techniques.map((technique: any) => (
-                  <article key={technique.id} className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-300">
-                      {technique.category} - {technique.duration_minutes || 3} min
-                    </p>
-                    <h3 className="mt-1 text-lg font-black text-white">{technique.name}</h3>
-                    <p className="mt-2 text-sm font-bold leading-6 text-slate-400">{technique.description}</p>
-                    <p className="mt-3 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-sm font-bold leading-6 text-slate-300">
-                      {technique.instructions}
-                    </p>
-                  </article>
+            <form action={createMentalRoutine} className="tal-chart-card space-y-4">
+              <Header icon={ListChecks} eyebrow="Rutina pre-tiro" title="Crear rutina mental" />
+              <input type="hidden" name="staff_id" value={psychologistStaff?.id || ""} />
+
+              <select name="athlete_id" className="tal-input w-full" required>
+                <option className="bg-slate-900 text-white" value="">
+                  Selecciona atleta
+                </option>
+                {athletes.map((athlete: any) => (
+                  <option className="bg-slate-900 text-white" key={athlete.id} value={athlete.id}>
+                    {getName(athlete.users, "Atleta")}
+                  </option>
                 ))}
-                {techniques.length === 0 && (
-                  <p className="rounded-2xl border border-yellow-300/20 bg-yellow-300/10 p-4 text-sm font-bold text-yellow-100">
-                    Corre el SQL supabase/20260617_sports_psychology_role.sql para cargar la biblioteca.
-                  </p>
-                )}
+              </select>
+              <input name="title" placeholder="Titulo de la rutina" className="tal-input w-full" defaultValue="Rutina mental pre-tiro" />
+              <textarea name="breathing_step" placeholder="Paso de respiracion: inhalar, sostener, exhalar..." className="tal-input min-h-20 w-full resize-none" />
+              <textarea name="visualization_step" placeholder="Visualizacion deportiva antes de tirar" className="tal-input min-h-20 w-full resize-none" />
+              <div className="grid gap-3 md:grid-cols-2">
+                <input name="cue_word" placeholder="Palabra clave" className="tal-input w-full" />
+                <input name="reset_action" placeholder="Accion de reset despues de error" className="tal-input w-full" />
               </div>
-            </section>
+              <textarea name="competition_note" placeholder="Nota para competencia" className="tal-input min-h-20 w-full resize-none" />
+              <button className="tal-button inline-flex items-center justify-center gap-2">
+                <ClipboardList size={17} />
+                Guardar rutina
+              </button>
+            </form>
+
+            <TechniqueLibraryModal techniques={techniques as any} />
           </div>
+        </section>
+
+        <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+          <form action={createMentalSeasonPlan} className="tal-chart-card space-y-4">
+            <Header icon={Flag} eyebrow="Temporada" title="Plan mental por temporada" />
+            <input type="hidden" name="staff_id" value={psychologistStaff?.id || ""} />
+
+            <select name="athlete_id" className="tal-input w-full" required>
+              <option className="bg-slate-900 text-white" value="">
+                Selecciona atleta
+              </option>
+              {athletes.map((athlete: any) => (
+                <option className="bg-slate-900 text-white" key={athlete.id} value={athlete.id}>
+                  {getName(athlete.users, "Atleta")}
+                </option>
+              ))}
+            </select>
+            <input name="title" placeholder="Nombre del plan" className="tal-input w-full" />
+            <div className="grid gap-3 md:grid-cols-3">
+              <select name="season_phase" className="tal-input w-full" defaultValue="preparation">
+                <option className="bg-slate-900 text-white" value="base">Base</option>
+                <option className="bg-slate-900 text-white" value="preparation">Preparacion</option>
+                <option className="bg-slate-900 text-white" value="competition">Competencia</option>
+                <option className="bg-slate-900 text-white" value="recovery">Recuperacion</option>
+              </select>
+              <input name="start_date" type="date" defaultValue={today()} className="tal-input w-full" />
+              <input name="end_date" type="date" className="tal-input w-full" />
+            </div>
+            <textarea name="objective" placeholder="Objetivo mental deportivo" className="tal-input min-h-24 w-full resize-none" />
+            <textarea name="focus_areas" placeholder="Areas de enfoque: respiracion, foco, rutina, presion..." className="tal-input min-h-24 w-full resize-none" />
+            <textarea name="success_criteria" placeholder="Criterios observables de exito" className="tal-input min-h-24 w-full resize-none" />
+            <button className="tal-button inline-flex items-center justify-center gap-2">
+              <CalendarCheck size={17} />
+              Guardar plan
+            </button>
+          </form>
+
+          <form action={logMentalTechniquePractice} className="tal-chart-card space-y-4">
+            <Header icon={Activity} eyebrow="Seguimiento" title="Registrar practica mental" />
+
+            <select name="assignment_id" className="tal-input w-full" required>
+              <option className="bg-slate-900 text-white" value="">
+                Selecciona tecnica asignada
+              </option>
+              {assignments.map((assignment: any) => (
+                <option className="bg-slate-900 text-white" key={assignment.id} value={assignment.id}>
+                  {getName(assignment.athlete_profiles?.users, "Atleta")} - {assignment.mental_techniques?.name || "Tecnica"}
+                </option>
+              ))}
+            </select>
+            <div className="grid gap-3 md:grid-cols-3">
+              <input name="practiced_at" type="date" defaultValue={today()} className="tal-input w-full" />
+              <select name="worked_status" className="tal-input w-full" defaultValue="practiced">
+                <option className="bg-slate-900 text-white" value="practiced">Practicada</option>
+                <option className="bg-slate-900 text-white" value="worked">Funciono</option>
+                <option className="bg-slate-900 text-white" value="not_worked">No funciono</option>
+              </select>
+              <ScoreSelect name="usefulness_score" label="Utilidad" />
+            </div>
+            <textarea name="sport_comment" placeholder="Comentario deportivo sobre la practica" className="tal-input min-h-24 w-full resize-none" />
+            <button className="tal-button inline-flex items-center justify-center gap-2">
+              <Activity size={17} />
+              Guardar seguimiento
+            </button>
+          </form>
+        </section>
+
+        <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_0.9fr]">
+          <section className="tal-chart-card">
+            <Header icon={ShieldAlert} eyebrow="Alertas deportivas" title="Riesgos de rendimiento" />
+            <div className="mt-5 grid gap-3">
+              {mentalAlerts.map((alert) => (
+                <article key={`${alert.athlete}-${alert.type}`} className="rounded-2xl border border-yellow-300/20 bg-yellow-300/10 p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-yellow-200">
+                    {alert.type}
+                  </p>
+                  <h3 className="mt-1 text-lg font-black text-white">{alert.athlete}</h3>
+                  <p className="mt-2 text-sm font-bold leading-6 text-yellow-50/90">
+                    {alert.message}
+                  </p>
+                </article>
+              ))}
+              {mentalAlerts.length === 0 && (
+                <p className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-6 text-sm font-bold text-slate-500">
+                  Sin alertas deportivas con los ultimos check-ins.
+                </p>
+              )}
+            </div>
+          </section>
+
+          <section className="tal-chart-card">
+            <Header icon={ListChecks} eyebrow="Rutina" title="Rutinas pre-tiro activas" />
+            <div className="mt-5 grid gap-3">
+              {routines.map((routine: any) => (
+                <article key={routine.id} className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-300">
+                    {getName(routine.athlete_profiles?.users, "Atleta")}
+                  </p>
+                  <h3 className="mt-1 text-lg font-black text-white">{routine.title}</h3>
+                  <div className="mt-3 grid gap-2 text-sm font-bold leading-6 text-slate-300">
+                    {routine.breathing_step && <p>Respiracion: {routine.breathing_step}</p>}
+                    {routine.visualization_step && <p>Visualizacion: {routine.visualization_step}</p>}
+                    {routine.cue_word && <p>Palabra clave: {routine.cue_word}</p>}
+                    {routine.reset_action && <p>Reset: {routine.reset_action}</p>}
+                  </div>
+                </article>
+              ))}
+              {routines.length === 0 && (
+                <p className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-6 text-sm font-bold text-slate-500">
+                  Sin rutinas pre-tiro activas.
+                </p>
+              )}
+            </div>
+          </section>
+
+          <section className="tal-chart-card">
+            <Header icon={Flag} eyebrow="Temporada" title="Planes mentales activos" />
+            <div className="mt-5 grid gap-3">
+              {seasonPlans.map((plan: any) => (
+                <article key={plan.id} className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-300">
+                    {getName(plan.athlete_profiles?.users, "Atleta")} - {plan.season_phase}
+                  </p>
+                  <h3 className="mt-1 text-lg font-black text-white">{plan.title}</h3>
+                  <p className="mt-2 text-sm font-bold text-slate-400">
+                    {plan.start_date} {plan.end_date ? `a ${plan.end_date}` : ""}
+                  </p>
+                  {plan.objective && (
+                    <p className="mt-3 text-sm font-bold leading-6 text-slate-300">{plan.objective}</p>
+                  )}
+                  {plan.success_criteria && (
+                    <p className="mt-3 rounded-xl border border-emerald-300/15 bg-emerald-300/10 p-3 text-sm font-bold leading-6 text-emerald-100">
+                      {plan.success_criteria}
+                    </p>
+                  )}
+                </article>
+              ))}
+              {seasonPlans.length === 0 && (
+                <p className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-6 text-sm font-bold text-slate-500">
+                  Sin planes mentales activos.
+                </p>
+              )}
+            </div>
+          </section>
+
+          <section className="tal-chart-card">
+            <Header icon={ClipboardList} eyebrow="Bitacora" title="Practica de tecnicas" />
+            <div className="mt-5 grid gap-3">
+              {practiceLogs.map((log: any) => (
+                <article key={log.id} className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-300">
+                    {log.practiced_at} - {log.worked_status}
+                  </p>
+                  <h3 className="mt-1 text-lg font-black text-white">
+                    {getName(log.athlete_profiles?.users, "Atleta")}
+                  </h3>
+                  <p className="mt-1 text-sm font-bold text-slate-400">
+                    {log.athlete_mental_technique_assignments?.mental_techniques?.name || "Tecnica mental"} - utilidad {log.usefulness_score || "-"}/5
+                  </p>
+                  {log.sport_comment && (
+                    <p className="mt-3 text-sm font-bold leading-6 text-slate-300">{log.sport_comment}</p>
+                  )}
+                </article>
+              ))}
+              {practiceLogs.length === 0 && (
+                <p className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-6 text-sm font-bold text-slate-500">
+                  Aun no hay seguimiento de practica mental.
+                </p>
+              )}
+            </div>
+          </section>
         </section>
 
         <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_0.9fr]">
@@ -532,6 +793,62 @@ function averageMetric(items: any[], key: string) {
   const values = items.map((item) => Number(item[key] || 0)).filter(Boolean);
   if (!values.length) return "0.0";
   return (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1);
+}
+
+function buildMentalAlerts(sessions: any[]) {
+  const byAthlete = new Map<string, any[]>();
+
+  sessions.forEach((session) => {
+    const name = getName(session.athlete_profiles?.users, "Atleta");
+    byAthlete.set(name, [...(byAthlete.get(name) || []), session]);
+  });
+
+  return Array.from(byAthlete.entries()).flatMap(([athlete, athleteSessions]) => {
+    const recent = athleteSessions.slice(0, 3);
+    const confidence = Number(averageMetric(recent, "confidence_score"));
+    const pressure = Number(averageMetric(recent, "pressure_score"));
+    const breathing = Number(averageMetric(recent, "breathing_control_score"));
+    const reset = Number(averageMetric(recent, "error_recovery_score"));
+    const alerts = [];
+
+    if (confidence > 0 && confidence <= 2.5) {
+      alerts.push({
+        athlete,
+        type: "Confianza baja",
+        message:
+          "Revisar lenguaje de auto-instruccion, metas de proceso y una rutina breve antes de cada serie.",
+      });
+    }
+
+    if (pressure >= 4) {
+      alerts.push({
+        athlete,
+        type: "Presion competitiva alta",
+        message:
+          "Practicar respiracion cuadrada y simulaciones de competencia con foco en proceso, no en resultado.",
+      });
+    }
+
+    if (breathing > 0 && breathing <= 2.5) {
+      alerts.push({
+        athlete,
+        type: "Control respiratorio bajo",
+        message:
+          "Asignar una tecnica de respiracion de 3 a 5 minutos y verificar adherencia antes de entrenar.",
+      });
+    }
+
+    if (reset > 0 && reset <= 2.5) {
+      alerts.push({
+        athlete,
+        type: "Recuperacion despues de error",
+        message:
+          "Definir una accion de reset visible: soltar tension, palabra clave y regreso a la tarea inmediata.",
+      });
+    }
+
+    return alerts;
+  });
 }
 
 function Header({

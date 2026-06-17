@@ -71,6 +71,56 @@ create table if not exists public.athlete_mental_technique_assignments (
   unique (athlete_id, technique_id, status)
 );
 
+create table if not exists public.athlete_mental_routines (
+  id uuid primary key default gen_random_uuid(),
+  athlete_id uuid not null references public.athlete_profiles(id) on delete cascade,
+  staff_id uuid references public.performance_staff(id) on delete set null,
+  club_id uuid references public.clubs(id) on delete set null,
+  title text not null,
+  breathing_step text,
+  visualization_step text,
+  cue_word text,
+  reset_action text,
+  competition_note text,
+  is_active boolean not null default true,
+  created_by uuid references public.users(id),
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now()
+);
+
+create table if not exists public.athlete_mental_practice_logs (
+  id uuid primary key default gen_random_uuid(),
+  athlete_id uuid not null references public.athlete_profiles(id) on delete cascade,
+  assignment_id uuid references public.athlete_mental_technique_assignments(id) on delete set null,
+  club_id uuid references public.clubs(id) on delete set null,
+  practiced_at date not null default current_date,
+  usefulness_score integer check (usefulness_score between 1 and 5),
+  worked_status text not null default 'practiced'
+    check (worked_status in ('practiced', 'worked', 'not_worked')),
+  sport_comment text,
+  created_by uuid references public.users(id),
+  created_at timestamp with time zone not null default now()
+);
+
+create table if not exists public.athlete_mental_season_plans (
+  id uuid primary key default gen_random_uuid(),
+  athlete_id uuid not null references public.athlete_profiles(id) on delete cascade,
+  staff_id uuid references public.performance_staff(id) on delete set null,
+  club_id uuid references public.clubs(id) on delete set null,
+  title text not null,
+  season_phase text not null default 'base'
+    check (season_phase in ('base', 'preparation', 'competition', 'recovery')),
+  start_date date not null default current_date,
+  end_date date,
+  objective text,
+  focus_areas text,
+  success_criteria text,
+  status text not null default 'active' check (status in ('active', 'completed', 'paused')),
+  created_by uuid references public.users(id),
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now()
+);
+
 create index if not exists psychology_sessions_club_date_idx
   on public.psychology_sessions (club_id, session_date desc);
 
@@ -79,6 +129,15 @@ create index if not exists psychology_sessions_staff_date_idx
 
 create index if not exists athlete_mental_technique_assignments_athlete_idx
   on public.athlete_mental_technique_assignments (athlete_id, status);
+
+create index if not exists athlete_mental_routines_athlete_idx
+  on public.athlete_mental_routines (athlete_id, is_active);
+
+create index if not exists athlete_mental_practice_logs_athlete_idx
+  on public.athlete_mental_practice_logs (athlete_id, practiced_at desc);
+
+create index if not exists athlete_mental_season_plans_athlete_idx
+  on public.athlete_mental_season_plans (athlete_id, status, start_date desc);
 
 insert into public.mental_techniques
   (name, category, description, instructions, evidence_note, duration_minutes)
@@ -128,12 +187,21 @@ on conflict do nothing;
 alter table public.mental_techniques enable row level security;
 alter table public.psychology_sessions enable row level security;
 alter table public.athlete_mental_technique_assignments enable row level security;
+alter table public.athlete_mental_routines enable row level security;
+alter table public.athlete_mental_practice_logs enable row level security;
+alter table public.athlete_mental_season_plans enable row level security;
 
 drop policy if exists "Mental techniques read" on public.mental_techniques;
 drop policy if exists "Psychology sessions sport scoped read" on public.psychology_sessions;
 drop policy if exists "Psychology sessions sport scoped insert" on public.psychology_sessions;
 drop policy if exists "Mental assignments scoped read" on public.athlete_mental_technique_assignments;
 drop policy if exists "Mental assignments scoped insert" on public.athlete_mental_technique_assignments;
+drop policy if exists "Mental routines scoped read" on public.athlete_mental_routines;
+drop policy if exists "Mental routines scoped insert" on public.athlete_mental_routines;
+drop policy if exists "Mental practice logs scoped read" on public.athlete_mental_practice_logs;
+drop policy if exists "Mental practice logs scoped insert" on public.athlete_mental_practice_logs;
+drop policy if exists "Mental season plans scoped read" on public.athlete_mental_season_plans;
+drop policy if exists "Mental season plans scoped insert" on public.athlete_mental_season_plans;
 
 create policy "Mental techniques read"
   on public.mental_techniques for select
@@ -177,22 +245,30 @@ create policy "Psychology sessions sport scoped insert"
   to authenticated
   with check (
     exists (
-      select 1 from public.users
-      where users.id = auth.uid()
-        and users.role::text = 'admin'
-    )
-    or exists (
-      select 1 from public.users
-      where users.id = auth.uid()
-        and users.role::text = 'coach'
-        and users.club_id = psychology_sessions.club_id
-    )
-    or exists (
       select 1
-      from public.performance_staff
-      where performance_staff.user_id = auth.uid()
-        and performance_staff.staff_type = 'sports_psychologist'
-        and performance_staff.club_id = psychology_sessions.club_id
+      from public.athlete_profiles
+      where athlete_profiles.id = psychology_sessions.athlete_id
+        and athlete_profiles.club_id = psychology_sessions.club_id
+    )
+    and (
+      exists (
+        select 1 from public.users
+        where users.id = auth.uid()
+          and users.role::text = 'admin'
+      )
+      or exists (
+        select 1 from public.users
+        where users.id = auth.uid()
+          and users.role::text = 'coach'
+          and users.club_id = psychology_sessions.club_id
+      )
+      or exists (
+        select 1
+        from public.performance_staff
+        where performance_staff.user_id = auth.uid()
+          and performance_staff.staff_type = 'sports_psychologist'
+          and performance_staff.club_id = psychology_sessions.club_id
+      )
     )
   );
 
@@ -230,28 +306,167 @@ create policy "Mental assignments scoped insert"
   to authenticated
   with check (
     exists (
-      select 1 from public.users
-      where users.id = auth.uid()
-        and users.role::text = 'admin'
-    )
-    or exists (
-      select 1 from public.users
-      where users.id = auth.uid()
-        and users.role::text = 'coach'
-        and users.club_id = athlete_mental_technique_assignments.club_id
-    )
-    or exists (
       select 1
-      from public.performance_staff
+      from public.athlete_profiles
+      where athlete_profiles.id = athlete_mental_technique_assignments.athlete_id
+        and athlete_profiles.club_id = athlete_mental_technique_assignments.club_id
+    )
+    and (
+      exists (
+        select 1 from public.users
+        where users.id = auth.uid()
+          and users.role::text = 'admin'
+      )
+      or exists (
+        select 1 from public.users
+        where users.id = auth.uid()
+          and users.role::text = 'coach'
+          and users.club_id = athlete_mental_technique_assignments.club_id
+      )
+      or exists (
+        select 1
+        from public.performance_staff
+        where performance_staff.user_id = auth.uid()
+          and performance_staff.staff_type = 'sports_psychologist'
+          and performance_staff.club_id = athlete_mental_technique_assignments.club_id
+      )
+    )
+  );
+
+create policy "Mental routines scoped read"
+  on public.athlete_mental_routines for select
+  to authenticated
+  using (
+    exists (select 1 from public.users where users.id = auth.uid() and users.role::text = 'admin')
+    or exists (select 1 from public.users where users.id = auth.uid() and users.role::text = 'coach' and users.club_id = athlete_mental_routines.club_id)
+    or exists (
+      select 1 from public.performance_staff
       where performance_staff.user_id = auth.uid()
         and performance_staff.staff_type = 'sports_psychologist'
-        and performance_staff.club_id = athlete_mental_technique_assignments.club_id
+        and performance_staff.club_id = athlete_mental_routines.club_id
+    )
+    or exists (
+      select 1 from public.athlete_profiles
+      where athlete_profiles.id = athlete_mental_routines.athlete_id
+        and athlete_profiles.user_id = auth.uid()
+    )
+  );
+
+create policy "Mental routines scoped insert"
+  on public.athlete_mental_routines for insert
+  to authenticated
+  with check (
+    exists (
+      select 1
+      from public.athlete_profiles
+      where athlete_profiles.id = athlete_mental_routines.athlete_id
+        and athlete_profiles.club_id = athlete_mental_routines.club_id
+    )
+    and (
+      exists (select 1 from public.users where users.id = auth.uid() and users.role::text = 'admin')
+      or exists (select 1 from public.users where users.id = auth.uid() and users.role::text = 'coach' and users.club_id = athlete_mental_routines.club_id)
+      or exists (
+        select 1 from public.performance_staff
+        where performance_staff.user_id = auth.uid()
+          and performance_staff.staff_type = 'sports_psychologist'
+          and performance_staff.club_id = athlete_mental_routines.club_id
+      )
+    )
+  );
+
+create policy "Mental practice logs scoped read"
+  on public.athlete_mental_practice_logs for select
+  to authenticated
+  using (
+    exists (select 1 from public.users where users.id = auth.uid() and users.role::text = 'admin')
+    or exists (select 1 from public.users where users.id = auth.uid() and users.role::text = 'coach' and users.club_id = athlete_mental_practice_logs.club_id)
+    or exists (
+      select 1 from public.performance_staff
+      where performance_staff.user_id = auth.uid()
+        and performance_staff.staff_type = 'sports_psychologist'
+        and performance_staff.club_id = athlete_mental_practice_logs.club_id
+    )
+    or exists (
+      select 1 from public.athlete_profiles
+      where athlete_profiles.id = athlete_mental_practice_logs.athlete_id
+        and athlete_profiles.user_id = auth.uid()
+    )
+  );
+
+create policy "Mental practice logs scoped insert"
+  on public.athlete_mental_practice_logs for insert
+  to authenticated
+  with check (
+    exists (
+      select 1
+      from public.athlete_profiles
+      where athlete_profiles.id = athlete_mental_practice_logs.athlete_id
+        and athlete_profiles.club_id = athlete_mental_practice_logs.club_id
+    )
+    and (
+      exists (select 1 from public.users where users.id = auth.uid() and users.role::text = 'admin')
+      or exists (select 1 from public.users where users.id = auth.uid() and users.role::text = 'coach' and users.club_id = athlete_mental_practice_logs.club_id)
+      or exists (
+        select 1 from public.performance_staff
+        where performance_staff.user_id = auth.uid()
+          and performance_staff.staff_type = 'sports_psychologist'
+          and performance_staff.club_id = athlete_mental_practice_logs.club_id
+      )
+      or exists (
+        select 1 from public.athlete_profiles
+        where athlete_profiles.id = athlete_mental_practice_logs.athlete_id
+          and athlete_profiles.user_id = auth.uid()
+      )
+    )
+  );
+
+create policy "Mental season plans scoped read"
+  on public.athlete_mental_season_plans for select
+  to authenticated
+  using (
+    exists (select 1 from public.users where users.id = auth.uid() and users.role::text = 'admin')
+    or exists (select 1 from public.users where users.id = auth.uid() and users.role::text = 'coach' and users.club_id = athlete_mental_season_plans.club_id)
+    or exists (
+      select 1 from public.performance_staff
+      where performance_staff.user_id = auth.uid()
+        and performance_staff.staff_type = 'sports_psychologist'
+        and performance_staff.club_id = athlete_mental_season_plans.club_id
+    )
+    or exists (
+      select 1 from public.athlete_profiles
+      where athlete_profiles.id = athlete_mental_season_plans.athlete_id
+        and athlete_profiles.user_id = auth.uid()
+    )
+  );
+
+create policy "Mental season plans scoped insert"
+  on public.athlete_mental_season_plans for insert
+  to authenticated
+  with check (
+    exists (
+      select 1
+      from public.athlete_profiles
+      where athlete_profiles.id = athlete_mental_season_plans.athlete_id
+        and athlete_profiles.club_id = athlete_mental_season_plans.club_id
+    )
+    and (
+      exists (select 1 from public.users where users.id = auth.uid() and users.role::text = 'admin')
+      or exists (select 1 from public.users where users.id = auth.uid() and users.role::text = 'coach' and users.club_id = athlete_mental_season_plans.club_id)
+      or exists (
+        select 1 from public.performance_staff
+        where performance_staff.user_id = auth.uid()
+          and performance_staff.staff_type = 'sports_psychologist'
+          and performance_staff.club_id = athlete_mental_season_plans.club_id
+      )
     )
   );
 
 grant select on public.mental_techniques to authenticated;
 grant select, insert on public.psychology_sessions to authenticated;
 grant select, insert on public.athlete_mental_technique_assignments to authenticated;
+grant select, insert on public.athlete_mental_routines to authenticated;
+grant select, insert on public.athlete_mental_practice_logs to authenticated;
+grant select, insert on public.athlete_mental_season_plans to authenticated;
 
 drop policy if exists "Sports psychologist self staff insert" on public.performance_staff;
 

@@ -142,3 +142,98 @@ export async function assignMentalTechnique(formData: FormData) {
   revalidatePath("/psychology");
   revalidatePath(`/athletes/${athlete.id}`);
 }
+
+export async function createMentalRoutine(formData: FormData) {
+  const athleteId = String(formData.get("athlete_id") || "");
+  const staffId = String(formData.get("staff_id") || "") || null;
+
+  const { supabase, userId, athlete, staffId: resolvedStaffId } =
+    await getAuthorizedContext(athleteId, staffId);
+
+  const { error } = await supabase.from("athlete_mental_routines").insert({
+    athlete_id: athlete.id,
+    staff_id: resolvedStaffId,
+    club_id: athlete.club_id,
+    title: String(formData.get("title") || "Rutina pre-tiro"),
+    breathing_step: String(formData.get("breathing_step") || "") || null,
+    visualization_step: String(formData.get("visualization_step") || "") || null,
+    cue_word: String(formData.get("cue_word") || "") || null,
+    reset_action: String(formData.get("reset_action") || "") || null,
+    competition_note: String(formData.get("competition_note") || "") || null,
+    created_by: userId,
+  });
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/psychology");
+  revalidatePath(`/athletes/${athlete.id}`);
+}
+
+export async function logMentalTechniquePractice(formData: FormData) {
+  const assignmentId = String(formData.get("assignment_id") || "");
+
+  if (!assignmentId) throw new Error("Selecciona una tecnica asignada.");
+
+  const supabase = await createClient();
+  const { data: assignment } = await supabase
+    .from("athlete_mental_technique_assignments")
+    .select("id, athlete_id")
+    .eq("id", assignmentId)
+    .single();
+
+  if (!assignment?.athlete_id) {
+    throw new Error("Asignacion no encontrada.");
+  }
+
+  const { supabase: authorizedClient, userId, athlete } =
+    await getAuthorizedContext(String(assignment.athlete_id), null);
+
+  const { error } = await authorizedClient
+    .from("athlete_mental_practice_logs")
+    .insert({
+      athlete_id: athlete.id,
+      assignment_id: assignment.id,
+      club_id: athlete.club_id,
+      practiced_at:
+        String(formData.get("practiced_at") || "") ||
+        new Date().toISOString().slice(0, 10),
+      usefulness_score: scoreValue(formData, "usefulness_score"),
+      worked_status: String(formData.get("worked_status") || "practiced"),
+      sport_comment: String(formData.get("sport_comment") || "") || null,
+      created_by: userId,
+    });
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/psychology");
+  revalidatePath(`/athletes/${athlete.id}`);
+}
+
+export async function createMentalSeasonPlan(formData: FormData) {
+  const athleteId = String(formData.get("athlete_id") || "");
+  const staffId = String(formData.get("staff_id") || "") || null;
+
+  const { supabase, userId, athlete, staffId: resolvedStaffId } =
+    await getAuthorizedContext(athleteId, staffId);
+
+  const { error } = await supabase.from("athlete_mental_season_plans").insert({
+    athlete_id: athlete.id,
+    staff_id: resolvedStaffId,
+    club_id: athlete.club_id,
+    title: String(formData.get("title") || "Plan mental de temporada"),
+    season_phase: String(formData.get("season_phase") || "preparation"),
+    start_date:
+      String(formData.get("start_date") || "") ||
+      new Date().toISOString().slice(0, 10),
+    end_date: String(formData.get("end_date") || "") || null,
+    objective: String(formData.get("objective") || "") || null,
+    focus_areas: String(formData.get("focus_areas") || "") || null,
+    success_criteria: String(formData.get("success_criteria") || "") || null,
+    created_by: userId,
+  });
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/psychology");
+  revalidatePath(`/athletes/${athlete.id}`);
+}
