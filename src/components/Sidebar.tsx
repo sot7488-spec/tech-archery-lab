@@ -81,6 +81,7 @@ const adminNavSections: NavSection[] = [
     items: [
       { href: "/conditioning", label: "Fisico", icon: Dumbbell },
       { href: "/psychology", label: "Psicologia", icon: Brain },
+      { href: "/mental-log", label: "Bitacora mental", icon: Brain },
       { href: "/leagues", label: "Liga indoor", icon: Trophy },
       { href: "/conade", label: "CONADE", icon: Trophy },
     ],
@@ -133,6 +134,7 @@ function coachNavSections(clubId: string | null): NavSection[] {
       items: [
         { href: "/conditioning", label: "Fisico", icon: Dumbbell },
         { href: "/psychology", label: "Psicologia", icon: Brain },
+        { href: "/mental-log", label: "Bitacora mental", icon: Brain },
         { href: "/leagues", label: "Liga indoor", icon: Trophy },
       ],
     },
@@ -148,6 +150,7 @@ function psychologistNavSections(): NavSection[] {
       items: [
         { href: "/", label: "Dashboard", icon: LayoutDashboard },
         { href: "/psychology", label: "Psicologia", icon: Brain },
+        { href: "/mental-log", label: "Bitacora mental", icon: Brain },
         { href: "/athletes", label: "Atletas", icon: Users },
         { href: "/agenda", label: "Agenda", icon: CalendarDays },
       ],
@@ -180,6 +183,7 @@ function athleteNavSections(athleteId: string): NavSection[] {
           icon: Video,
         },
         { href: "/mind", label: "Mente Deportiva", icon: Brain },
+        { href: "/mental-log", label: "Bitacora mental", icon: Brain },
         { href: "/agenda", label: "Mi agenda", icon: CalendarDays },
         { href: "/leagues", label: "Liga indoor", icon: Trophy },
         { href: `/equipment/${athleteId}`, label: "Mi equipo", icon: Shield },
