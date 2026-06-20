@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { Save } from "lucide-react";
 import { TargetScoringBoard } from "@/components/target-scoring-board";
 import { createSeriesWithArrowsState } from "./actions";
@@ -30,6 +30,13 @@ export default function TrainingSeriesCapture({
     createSeriesWithArrowsState,
     initialState
   );
+  const [boardVersion, setBoardVersion] = useState(0);
+
+  useEffect(() => {
+    if (state.savedAt && !state.error) {
+      setBoardVersion((version) => version + 1);
+    }
+  }, [state.savedAt, state.error]);
 
   return (
     <form action={formAction} className="space-y-5">
@@ -40,7 +47,7 @@ export default function TrainingSeriesCapture({
       <input type="hidden" name="arrows_per_series" value={arrowsPerSeries} />
 
       <div className="mx-auto w-full max-w-[760px]">
-        <TargetScoringBoard arrowCount={arrowsPerSeries} />
+        <TargetScoringBoard key={boardVersion} arrowCount={arrowsPerSeries} />
       </div>
 
       {state.error && (

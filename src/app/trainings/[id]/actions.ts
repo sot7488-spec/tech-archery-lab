@@ -91,12 +91,24 @@ type SeriesActionState = {
   completed?: boolean;
   message?: string;
   trainingSessionId?: string;
+  savedAt?: number;
   error?: string;
 };
 
 type RoundActionState = {
   success?: boolean;
   error?: string;
+};
+
+type RoutineActionState = {
+  success?: boolean;
+  error?: string;
+};
+
+type FinishTrainingActionState = {
+  success?: boolean;
+  error?: string;
+  pendingItems?: string[];
 };
 
 export async function updateTrainingConfiguration(formData: FormData) {
@@ -370,6 +382,11 @@ async function syncTrainingTotalsAndStatus(
     `)
     .eq("training_session_id", trainingSessionId);
 
+  const { data: routines } = await supabase
+    .from("training_routine_blocks")
+    .select("id, status")
+    .eq("training_session_id", trainingSessionId);
+
   const allArrows =
     rounds
       ?.filter((round: any) => round.scoring_enabled !== false)
@@ -384,8 +401,12 @@ async function syncTrainingTotalsAndStatus(
   );
   const average = totalArrows > 0 ? totalScore / totalArrows : 0;
   const allRoundsCompleted =
-    Boolean(rounds?.length) &&
-    rounds?.every((round: any) => round.status === "completed");
+    !rounds?.length ||
+    rounds.every((round: any) => round.status === "completed");
+  const allRoutinesCompleted =
+    !routines?.length ||
+    routines.every((routine: any) => routine.status === "completed");
+  const hasConfiguredWork = Boolean(rounds?.length || routines?.length);
 
   await supabase
     .from("training_sessions")
@@ -393,10 +414,44 @@ async function syncTrainingTotalsAndStatus(
       total_arrows: totalArrows,
       total_score: totalScore,
       average_score: average,
-      status: allRoundsCompleted ? "completed" : "active",
+      status:
+        hasConfiguredWork && allRoundsCompleted && allRoutinesCompleted
+          ? "ready_to_close"
+          : "active",
       updated_at: new Date().toISOString(),
     })
     .eq("id", trainingSessionId);
+}
+
+async function getPendingTrainingItems(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  trainingSessionId: string
+) {
+  const { data: rounds } = await supabase
+    .from("training_rounds")
+    .select("round_number, status")
+    .eq("training_session_id", trainingSessionId)
+    .order("round_number", { ascending: true });
+
+  const { data: routines } = await supabase
+    .from("training_routine_blocks")
+    .select("routine_number, title, routine_type, status")
+    .eq("training_session_id", trainingSessionId)
+    .order("routine_number", { ascending: true });
+
+  return [
+    ...((rounds || [])
+      .filter((round: any) => round.status !== "completed")
+      .map((round: any) => `Ronda #${round.round_number || 1}`)),
+    ...((routines || [])
+      .filter((routine: any) => routine.status !== "completed")
+      .map((routine: any) => {
+        const label =
+          routine.title ||
+          (routine.routine_type === "spt" ? "Rutina SPT" : "Rutina de fuerza");
+        return `Rutina #${routine.routine_number || 1}: ${label}`;
+      })),
+  ];
 }
 
 export async function finishTraining(formData: FormData) {
@@ -404,6 +459,12 @@ export async function finishTraining(formData: FormData) {
   const training_session_id = String(formData.get("training_session_id"));
 
   await assertCanMutateTraining(supabase, training_session_id);
+
+  const pendingItems = await getPendingTrainingItems(supabase, training_session_id);
+
+  if (pendingItems.length > 0) {
+    throw new Error(`Faltan por finalizar: ${pendingItems.join(", ")}`);
+  }
 
   const { error } = await supabase
     .from("training_sessions")
@@ -419,6 +480,52 @@ export async function finishTraining(formData: FormData) {
 
   revalidatePath(`/trainings/${training_session_id}`);
   revalidatePath("/trainings");
+}
+
+export async function finishTrainingState(
+  _previousState: FinishTrainingActionState,
+  formData: FormData
+): Promise<FinishTrainingActionState> {
+  try {
+    const supabase = await createClient();
+    const trainingSessionId = String(formData.get("training_session_id") || "");
+
+    if (!trainingSessionId) throw new Error("Falta el entrenamiento.");
+
+    await assertCanMutateTraining(supabase, trainingSessionId);
+
+    const pendingItems = await getPendingTrainingItems(supabase, trainingSessionId);
+
+    if (pendingItems.length > 0) {
+      return {
+        error: "Aun hay bloques pendientes por finalizar.",
+        pendingItems,
+      };
+    }
+
+    const { error } = await supabase
+      .from("training_sessions")
+      .update({
+        status: "completed",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", trainingSessionId);
+
+    if (error) throw new Error(error.message);
+
+    revalidatePath(`/trainings/${trainingSessionId}`);
+    revalidatePath("/trainings");
+    revalidatePath("/agenda");
+
+    return { success: true };
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "No se pudo finalizar el entrenamiento.",
+    };
+  }
 }
 
 export async function updateTrainingCloseNotes(formData: FormData) {
@@ -636,6 +743,7 @@ async function createSeriesWithArrowsInternal(formData: FormData) {
   return {
     completed: shouldComplete,
     trainingSessionId: training_session_id,
+    savedAt: Date.now(),
     message: shouldComplete
       ? "Series completas. Ahora finaliza la ronda con retroalimentacion."
       : "Serie guardada.",
@@ -726,6 +834,64 @@ export async function finishTrainingRoundState(
         error instanceof Error
           ? error.message
           : "No se pudo finalizar la ronda.",
+    };
+  }
+}
+
+async function finishTrainingRoutineInternal(formData: FormData) {
+  const supabase = await createClient();
+  const routineId = String(formData.get("routine_id") || "");
+  const feedback = String(formData.get("feedback") || "").trim();
+
+  if (!routineId) throw new Error("Falta la rutina.");
+  if (!feedback) throw new Error("Agrega retroalimentacion para cerrar la rutina.");
+
+  const { data: routine } = await supabase
+    .from("training_routine_blocks")
+    .select("*")
+    .eq("id", routineId)
+    .single();
+
+  if (!routine) throw new Error("Rutina no encontrada.");
+
+  await assertCanMutateTraining(supabase, routine.training_session_id);
+
+  if (routine.status === "completed") {
+    throw new Error("Esta rutina ya fue finalizada.");
+  }
+
+  const { error } = await supabase
+    .from("training_routine_blocks")
+    .update({
+      status: "completed",
+      feedback,
+      completed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", routineId);
+
+  if (error) throw new Error("No se pudo finalizar la rutina.");
+
+  await syncTrainingTotalsAndStatus(supabase, routine.training_session_id);
+
+  revalidatePath(`/trainings/${routine.training_session_id}`);
+  revalidatePath("/trainings");
+
+  return { success: true };
+}
+
+export async function finishTrainingRoutineState(
+  _previousState: RoutineActionState,
+  formData: FormData
+): Promise<RoutineActionState> {
+  try {
+    return await finishTrainingRoutineInternal(formData);
+  } catch (error) {
+    return {
+      error:
+        error instanceof Error
+          ? error.message
+          : "No se pudo finalizar la rutina.",
     };
   }
 }

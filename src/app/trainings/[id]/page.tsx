@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import TrainingSeriesCapture from "./TrainingSeriesCapture";
 import TrainingRoundFinalizeForm from "./TrainingRoundFinalizeForm";
+import TrainingRoutineFinalizeForm from "./TrainingRoutineFinalizeForm";
+import TrainingFinishButton from "./TrainingFinishButton";
 import TrainingDeleteButton from "../TrainingDeleteButton";
 import TrainingConfigurationEditModal from "./TrainingConfigurationEditModal";
 import {
@@ -173,6 +175,9 @@ export default async function TrainingDetailPage({
     (a: any, b: any) =>
       Number(a.routine_number || 0) - Number(b.routine_number || 0)
   );
+  const scoringRounds = trainingRounds.filter(
+    (round: any) => round.scoring_enabled !== false
+  );
   const currentRound =
     trainingRounds.find((round: any) => round.status !== "completed") ||
     trainingRounds[0];
@@ -221,6 +226,7 @@ export default async function TrainingDetailPage({
     (arrow: any) => Number(arrow.score || 0) === 0
   ).length;
   const isCompleted = training.status === "completed";
+  const isReadyToClose = training.status === "ready_to_close";
   const canDeleteTraining =
     currentUser?.role === "admin" || currentUser?.role === "coach";
   const canEditConfiguration =
@@ -270,11 +276,17 @@ export default async function TrainingDetailPage({
               className={`inline-flex w-fit items-center gap-2 rounded-2xl px-4 py-3 text-sm font-black uppercase ${
                 isCompleted
                   ? "bg-emerald-400 text-slate-950"
+                  : isReadyToClose
+                  ? "bg-cyan-300 text-slate-950"
                   : "bg-yellow-300 text-slate-950"
               }`}
             >
               <CheckCircle2 size={17} />
-              {isCompleted ? "Finalizado" : "En progreso"}
+              {isCompleted
+                ? "Finalizado"
+                : isReadyToClose
+                ? "Listo para cerrar"
+                : "En progreso"}
             </span>
           </div>
         </div>
@@ -377,6 +389,11 @@ export default async function TrainingDetailPage({
             value={training.athlete_notes || "Sin notas registradas."}
           />
         </section>
+
+        <TrainingFinishButton
+          trainingId={training.id}
+          isCompleted={isCompleted}
+        />
 
         <section className="tal-chart-card">
           <div className="mb-5 border-b border-white/10 pb-5">
@@ -506,6 +523,7 @@ export default async function TrainingDetailPage({
             <div className="grid gap-4 lg:grid-cols-2">
               {routineBlocks.map((routine: any) => {
                 const isSpt = routine.routine_type === "spt";
+                const routineCompleted = routine.status === "completed";
 
                 return (
                   <div
@@ -528,6 +546,18 @@ export default async function TrainingDetailPage({
 
                       <span className="w-fit rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-emerald-200">
                         {isSpt ? "SPT" : "Fuerza"}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-black uppercase ${
+                          routineCompleted
+                            ? "bg-emerald-400 text-slate-950"
+                            : "bg-yellow-300 text-slate-950"
+                        }`}
+                      >
+                        {routineCompleted ? "Finalizada" : "Activa"}
                       </span>
                     </div>
 
@@ -558,6 +588,20 @@ export default async function TrainingDetailPage({
                     <p className="mt-2 text-xs font-bold leading-5 text-slate-500">
                       {routine.technical_cue || routine.tempo || "Sin cue tecnico."}
                     </p>
+
+                    {routineCompleted ? (
+                      <div className="mt-5 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4">
+                        <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">
+                          Retroalimentacion
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-slate-300">
+                          {routine.feedback ||
+                            "Rutina finalizada sin retroalimentacion visible."}
+                        </p>
+                      </div>
+                    ) : (
+                      <TrainingRoutineFinalizeForm routineId={routine.id} />
+                    )}
                   </div>
                 );
               })}
@@ -585,13 +629,13 @@ export default async function TrainingDetailPage({
                 Rondas
               </p>
               <p className="text-4xl font-black text-white">
-                {trainingRounds.length || 0}
+                {scoringRounds.length || 0}
               </p>
             </div>
           </div>
 
           <div className="space-y-6">
-            {trainingRounds.map((round: any) => {
+            {scoringRounds.map((round: any) => {
               const roundArrowNumbers = Array.from(
                 { length: Math.max(1, Number(round.arrows_per_series || 6)) },
                 (_, index) => index
@@ -719,19 +763,21 @@ export default async function TrainingDetailPage({
               );
             })}
 
-            {trainingRounds.length === 0 && (
+            {scoringRounds.length === 0 && (
               <div className="rounded-[2rem] border border-dashed border-white/10 bg-white/[0.03] p-10 text-center">
                 <p className="text-lg font-bold text-slate-400">
-                  Aun no hay series registradas.
+                  Este entrenamiento no tiene rondas con registro de puntuacion.
                 </p>
               </div>
             )}
           </div>
         </section>
 
-        <section className="tal-chart-card">
-          <TargetHeatmap arrows={allTrainingArrows} />
-        </section>
+        {allTrainingArrows.length > 0 && (
+          <section className="tal-chart-card">
+            <TargetHeatmap arrows={allTrainingArrows} />
+          </section>
+        )}
       </div>
     </main>
   );
