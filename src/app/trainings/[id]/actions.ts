@@ -802,7 +802,7 @@ async function finishTrainingRoundInternal(formData: FormData) {
     throw new Error("Registra todas las series antes de finalizar esta ronda.");
   }
 
-  const { error } = await supabase
+  const { data: updatedRound, error } = await supabase
     .from("training_rounds")
     .update({
       status: "completed",
@@ -810,17 +810,13 @@ async function finishTrainingRoundInternal(formData: FormData) {
       completed_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
-    .eq("id", roundId);
+    .eq("id", roundId)
+    .select("status")
+    .single();
 
   if (error) throw new Error("No se pudo finalizar la ronda.");
 
-  const { data: completedRound, error: completedRoundError } = await supabase
-    .from("training_rounds")
-    .select("status")
-    .eq("id", roundId)
-    .single();
-
-  if (completedRoundError || completedRound?.status !== "completed") {
+  if (updatedRound?.status !== "completed") {
     throw new Error("La ronda no pudo confirmarse como finalizada.");
   }
 

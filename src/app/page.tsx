@@ -82,6 +82,8 @@ export default async function DashboardPage() {
       status,
       athlete_profiles (
         id,
+        achievement_zone_min_score,
+        achievement_zone_max_score,
         users!athlete_profiles_user_id_fkey (
           name,
           profile_photo_url
@@ -106,6 +108,8 @@ export default async function DashboardPage() {
       average_score,
       athlete_profiles (
         id,
+        achievement_zone_min_score,
+        achievement_zone_max_score,
         users!athlete_profiles_user_id_fkey (
           name,
           profile_photo_url
@@ -128,7 +132,13 @@ export default async function DashboardPage() {
         training_rounds (
           training_sessions (
             id,
-            training_date
+            training_date,
+            athlete_id,
+            athlete_profiles (
+              id,
+              achievement_zone_min_score,
+              achievement_zone_max_score
+            )
           )
         )
       )
@@ -144,6 +154,50 @@ export default async function DashboardPage() {
   }
 
   const { data: monthArrows } = await monthArrowsQuery;
+
+  let officialRoundsQuery = supabase
+    .from("training_rounds")
+    .select(`
+      id,
+      distance_meters,
+      total_series,
+      arrows_per_series,
+      scoring_enabled,
+      series (
+        id,
+        total_score,
+        arrows (
+          id
+        )
+      ),
+      training_sessions (
+        id,
+        training_date,
+        athlete_id,
+        club_id,
+        athlete_profiles (
+          id,
+          users!athlete_profiles_user_id_fkey (
+            name,
+            profile_photo_url
+          )
+        )
+      )
+    `)
+    .eq("total_series", 6)
+    .eq("arrows_per_series", 6)
+    .neq("scoring_enabled", false)
+    .gte("training_sessions.training_date", monthStart)
+    .lte("training_sessions.training_date", monthEnd);
+
+  if (isCoach) {
+    officialRoundsQuery = officialRoundsQuery.eq(
+      "training_sessions.club_id",
+      profile.club_id
+    );
+  }
+
+  const { data: officialScoreRounds } = await officialRoundsQuery;
 
   const arrowsRegistered = monthArrows?.length || 0;
 
@@ -188,8 +242,19 @@ export default async function DashboardPage() {
         trainings: 0,
         totalScore: 0,
         totalArrows: 0,
+        scoredArrows: 0,
+        arrowScoreTotal: 0,
+        zoneHits: 0,
         bestScore: 0,
         avgScore: 0,
+        avgArrowScore: 0,
+        zoneEffectiveness: 0,
+        achievementZoneMin: Number(
+          training.athlete_profiles?.achievement_zone_min_score ?? 9
+        ),
+        achievementZoneMax: Number(
+          training.athlete_profiles?.achievement_zone_max_score ?? 10
+        ),
       });
     }
 
@@ -208,13 +273,126 @@ export default async function DashboardPage() {
         : 0;
   });
 
+  monthArrows?.forEach((arrow: any) => {
+    const trainingSession =
+      arrow.series?.training_rounds?.training_sessions || null;
+    const athleteId = trainingSession?.athlete_id;
+
+    if (!athleteId || !athleteStatsMap.has(athleteId)) return;
+
+    const current = athleteStatsMap.get(athleteId);
+    const score = Number(arrow.score);
+
+    if (!Number.isFinite(score)) return;
+
+    const zoneMin = Number(
+      current.achievementZoneMin ??
+        trainingSession?.athlete_profiles?.achievement_zone_min_score ??
+        9
+    );
+    const zoneMax = Number(
+      current.achievementZoneMax ??
+        trainingSession?.athlete_profiles?.achievement_zone_max_score ??
+        10
+    );
+
+    current.scoredArrows += 1;
+    current.arrowScoreTotal += score;
+    current.zoneHits += score >= zoneMin && score <= zoneMax ? 1 : 0;
+    current.avgArrowScore =
+      current.scoredArrows > 0
+        ? Number((current.arrowScoreTotal / current.scoredArrows).toFixed(2))
+        : 0;
+    current.zoneEffectiveness =
+      current.scoredArrows > 0
+        ? Number(((current.zoneHits / current.scoredArrows) * 100).toFixed(1))
+        : 0;
+  });
+
   const rankingMonth = Array.from(athleteStatsMap.values()).sort(
-    (a, b) => b.avgScore - a.avgScore
+    (a, b) =>
+      b.zoneEffectiveness - a.zoneEffectiveness ||
+      b.avgArrowScore - a.avgArrowScore ||
+      b.scoredArrows - a.scoredArrows
   );
 
   const top5Athletes = rankingMonth.slice(0, 5);
 
   const archerOfMonth = rankingMonth[0] || null;
+
+  const score6x6ByDistanceMap = new Map();
+
+  officialScoreRounds?.forEach((round: any) => {
+    const trainingSession = round.training_sessions || null;
+    const athleteId = trainingSession?.athlete_id;
+    const distanceMeters = Number(round.distance_meters || 0);
+    const series = round.series || [];
+    const isComplete6x6 =
+      series.length === 6 &&
+      series.every((serie: any) => (serie.arrows || []).length === 6);
+
+    if (!athleteId || !distanceMeters || !isComplete6x6) return;
+
+    const athleteName =
+      trainingSession.athlete_profiles?.users?.name || "Atleta sin nombre";
+    const roundScore = series.reduce(
+      (sum: number, serie: any) => sum + Number(serie.total_score || 0),
+      0
+    );
+    const distanceKey = String(distanceMeters);
+
+    if (!score6x6ByDistanceMap.has(distanceKey)) {
+      score6x6ByDistanceMap.set(distanceKey, {
+        distanceMeters,
+        bestScore: 0,
+        athletes: new Map(),
+      });
+    }
+
+    const distanceGroup = score6x6ByDistanceMap.get(distanceKey);
+    distanceGroup.bestScore = Math.max(distanceGroup.bestScore, roundScore);
+
+    if (!distanceGroup.athletes.has(athleteId)) {
+      distanceGroup.athletes.set(athleteId, {
+        athleteId,
+        name: athleteName,
+        rounds: 0,
+        bestRoundScore: 0,
+        totalScore: 0,
+        averageRoundScore: 0,
+      });
+    }
+
+    const current = distanceGroup.athletes.get(athleteId);
+    current.rounds += 1;
+    current.totalScore += roundScore;
+    current.bestRoundScore = Math.max(current.bestRoundScore, roundScore);
+    current.averageRoundScore =
+      current.rounds > 0
+        ? Number((current.totalScore / current.rounds).toFixed(1))
+        : 0;
+  });
+
+  const score6x6ByDistance = Array.from(score6x6ByDistanceMap.values())
+    .map((distanceGroup) => ({
+      distanceMeters: distanceGroup.distanceMeters,
+      bestScore: distanceGroup.bestScore,
+      ranking: Array.from(distanceGroup.athletes.values())
+        .sort(
+          (a: any, b: any) =>
+            b.averageRoundScore - a.averageRoundScore ||
+            b.bestRoundScore - a.bestRoundScore ||
+            b.rounds - a.rounds
+        )
+        .slice(0, 5),
+    }))
+    .sort((a, b) => a.distanceMeters - b.distanceMeters);
+
+  const bestScoreByDistance = score6x6ByDistance.map((distanceGroup) => ({
+    label: `${distanceGroup.distanceMeters} m`,
+    value: distanceGroup.bestScore,
+  }));
+  const score6x6Ranking: any[] = [];
 
   const inactiveAthletes =
     Math.max((athletesCount || 0) - athleteStatsMap.size, 0);
@@ -308,11 +486,12 @@ export default async function DashboardPage() {
                       {archerOfMonth.name}
                     </h2>
                     <p className="mt-1 text-sm text-slate-400">
-                      Promedio mensual: {archerOfMonth.avgScore}
+                      Efectividad zona: {archerOfMonth.zoneEffectiveness}%
                     </p>
                     <p className="text-sm text-slate-400">
-                      Entrenamientos: {archerOfMonth.trainings} · Mejor score:{" "}
-                      {archerOfMonth.bestScore}
+                      Promedio/flecha: {archerOfMonth.avgArrowScore} · Zona:{" "}
+                      {archerOfMonth.achievementZoneMin}-
+                      {archerOfMonth.achievementZoneMax}
                     </p>
                   </div>
                 </div>
@@ -332,9 +511,18 @@ export default async function DashboardPage() {
           <KpiCard title="Flechas registradas" value={arrowsRegistered} icon={Crosshair} />
           <KpiCard title="Mejor score del mes" value={bestScoreMonth} icon={Trophy} />
           <KpiCard title="Prom. últimos" value={avgLatestScore} icon={BarChart3} highlight />
+          {bestScoreByDistance.map((item) => (
+            <KpiCard
+              key={item.label}
+              title={`Mejor ${item.label}`}
+              value={item.value}
+              icon={Trophy}
+              highlight
+            />
+          ))}
         </section>
 
-        <section className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
           <div className="tal-panel tal-glow p-6">
             <div className="mb-5 flex items-center justify-between">
               <div>
@@ -377,15 +565,133 @@ export default async function DashboardPage() {
 
                     <div className="text-right">
                       <p className="text-xl font-black text-cyan-300">
-                        {athlete.avgScore}
+                        {athlete.zoneEffectiveness}%
                       </p>
-                      <p className="text-xs text-slate-500">promedio</p>
+                      <p className="text-xs text-slate-500">
+                        zona · {athlete.avgArrowScore}/flecha
+                      </p>
                     </div>
                   </div>
                 ))
               ) : (
                 <p className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 text-sm text-slate-400">
                   Aún no hay ranking mensual disponible.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="tal-panel tal-glow p-6">
+            <div className="mb-5">
+              <p className="text-xs font-black uppercase tracking-[0.3em] text-emerald-300">
+                Ranking score
+              </p>
+              <h2 className="mt-2 text-2xl font-black text-white">
+                Rondas 6x6 por distancia
+              </h2>
+              <p className="mt-1 text-xs font-bold text-slate-500">
+                Solo rondas completas de 6 series x 6 flechas.
+              </p>
+            </div>
+
+            <div className="space-y-5">
+              {score6x6ByDistance.length > 0 ? (
+                score6x6ByDistance.map((distanceGroup) => (
+                  <div
+                    key={distanceGroup.distanceMeters}
+                    className="rounded-3xl border border-emerald-400/10 bg-emerald-400/[0.035] p-4"
+                  >
+                    <div className="mb-3">
+                      <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">
+                        {distanceGroup.distanceMeters} m
+                      </p>
+                      <p className="text-xs font-bold text-slate-500">
+                        Mejor score: {distanceGroup.bestScore}
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      {distanceGroup.ranking.map((athlete: any, index: number) => (
+                        <div
+                          key={`${distanceGroup.distanceMeters}-${athlete.athleteId}`}
+                          className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.04] p-3"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-400/10 text-xs font-black text-emerald-300">
+                              #{index + 1}
+                            </div>
+
+                            <div>
+                              <p className="font-black text-white">{athlete.name}</p>
+                              <p className="text-xs text-slate-500">
+                                {athlete.rounds} rondas · mejor {athlete.bestRoundScore}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="text-right">
+                            <p className="text-lg font-black text-emerald-300">
+                              {athlete.averageRoundScore}
+                            </p>
+                            <p className="text-[11px] text-slate-500">prom.</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 text-sm text-slate-400">
+                  Aun no hay rondas 6x6 completas este mes.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="hidden">
+            <div className="mb-5">
+              <p className="text-xs font-black uppercase tracking-[0.3em] text-emerald-300">
+                Ranking score
+              </p>
+              <h2 className="mt-2 text-2xl font-black text-white">
+                Rondas 6x6
+              </h2>
+              <p className="mt-1 text-xs font-bold text-slate-500">
+                Solo rondas completas de 6 series x 6 flechas.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {score6x6Ranking.length > 0 ? (
+                score6x6Ranking.map((athlete, index) => (
+                  <div
+                    key={athlete.athleteId}
+                    className="flex items-center justify-between rounded-3xl border border-white/10 bg-white/[0.04] p-4"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-400/10 text-sm font-black text-emerald-300">
+                        #{index + 1}
+                      </div>
+
+                      <div>
+                        <p className="font-black text-white">{athlete.name}</p>
+                        <p className="text-sm text-slate-400">
+                          {athlete.rounds} rondas · mejor {athlete.bestRoundScore}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <p className="text-xl font-black text-emerald-300">
+                        {athlete.averageRoundScore}
+                      </p>
+                      <p className="text-xs text-slate-500">prom. score</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 text-sm text-slate-400">
+                  Aun no hay rondas 6x6 completas este mes.
                 </p>
               )}
             </div>
