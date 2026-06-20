@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { CheckCircle2, FileText } from "lucide-react";
 import { finishTrainingRoutineState } from "./actions";
 
@@ -14,10 +15,17 @@ export default function TrainingRoutineFinalizeForm({
 }: {
   routineId: string;
 }) {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState(
     finishTrainingRoutineState,
     initialState
   );
+
+  useEffect(() => {
+    if (state.success && !state.error) {
+      router.refresh();
+    }
+  }, [router, state.success, state.error]);
 
   return (
     <form

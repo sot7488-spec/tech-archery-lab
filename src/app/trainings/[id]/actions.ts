@@ -814,6 +814,16 @@ async function finishTrainingRoundInternal(formData: FormData) {
 
   if (error) throw new Error("No se pudo finalizar la ronda.");
 
+  const { data: completedRound, error: completedRoundError } = await supabase
+    .from("training_rounds")
+    .select("status")
+    .eq("id", roundId)
+    .single();
+
+  if (completedRoundError || completedRound?.status !== "completed") {
+    throw new Error("La ronda no pudo confirmarse como finalizada.");
+  }
+
   await syncTrainingTotalsAndStatus(supabase, round.training_session_id);
 
   revalidatePath(`/trainings/${round.training_session_id}`);
